@@ -900,6 +900,7 @@ void NeonWave_StartWave( int num );
 int  NeonWave_GetWave( void );
 void NeonWave_Frame( void );
 void NeonWave_DropReward( int clearedWave );
+void NeonWave_TrackRunCombo( int combo );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
 void CheckTeamVote( int team );

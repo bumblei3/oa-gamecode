@@ -522,6 +522,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		if ( attacker->client->nwCombo > attacker->client->pers.nwBestCombo ) {
 			attacker->client->pers.nwBestCombo = attacker->client->nwCombo;
 		}
+		NeonWave_TrackRunCombo( attacker->client->nwCombo );
 	}
 #endif
 

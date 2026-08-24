@@ -34,6 +34,7 @@ static qboolean nw_failFired;
 static int nw_modifier = NW_MOD_NONE;
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
 static int nw_runStartTime;		// run stats: level.time of first wave start
+static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 
 // test helper: is g_neonwave_autokill active? (used by fakecombo hook)
 static qboolean autokillActive( void ) {
@@ -71,6 +72,7 @@ void NeonWave_Reset( void ) {
 	nw_aliveBots = 0;
 	nw_modifier = NW_MOD_NONE;
 	nw_runStartTime = level.time;
+	nw_runBestCombo = 0;
 	nw_started = qfalse;
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
@@ -212,6 +214,12 @@ static int NW_TestPlayerSkipBots( void ) {
 	return atoi( buf );
 }
 
+void NeonWave_TrackRunCombo( int combo ) {
+	if ( combo > nw_runBestCombo ) {
+		nw_runBestCombo = combo;
+	}
+}
+
 static int NW_RunKills( void ) {
 	int i, kills = 0;
 	int skipBots = !NW_TestPlayerSkipBots();
@@ -227,7 +235,7 @@ static int NW_RunKills( void ) {
 }
 
 static int NW_RunBestCombo( void ) {
-	int i, best = 0;
+	int i, best = nw_runBestCombo;
 	int skipBots = !NW_TestPlayerSkipBots();
 	gentity_t *ent;
 	for ( i = 0; i < level.maxclients; i++ ) {
@@ -503,6 +511,31 @@ static void NW_GrantUpgradePoints( void ) {
 		gain += combo / 5;
 		G_Printf( "NeonWave: combo bonus +%i (best streak %i)\n", combo / 5, combo );
 	}
+	// v0.13: mega reward — best streak of 8+ drops a Quad Damage pickup at
+	// the wave-clear reward point (stacks with the standard item drop)
+	if ( combo >= 8 ) {
+		gitem_t *quad = BG_FindItem( "Quad Damage" );
+		if ( quad ) {
+			// drop at the first connected client; under botasplayer (headless
+				// CI) the carrier is a bot, so don't exclude bots here
+				gentity_t *spot = NULL;
+				int j;
+				for ( j = 0; j < level.maxclients && !spot; j++ ) {
+					gentity_t *e = &g_entities[j];
+					if ( e->inuse && e->client
+							&& e->client->pers.connected == CON_CONNECTED ) {
+						spot = e;
+					}
+				}
+			if ( spot ) {
+				vec3_t qorigin, qvel = {0, 0, 20};
+				VectorCopy( spot->r.currentOrigin, qorigin );
+				qorigin[2] += 24;
+				LaunchItem( quad, qorigin, qvel );
+				G_Printf( "NeonWave: MEGA COMBO %i — Quad Damage dropped\n", combo );
+			}
+		}
+	}
 	pts += gain;
 	trap_Cvar_Set( "g_neonwave_upgradepoints", va("%i", pts) );
 	G_Printf( "NeonWave: upgrade point granted (%i banked)\n", pts );
@@ -740,6 +773,9 @@ void NeonWave_Frame( void ) {
 			}
 			if ( h->client->nwCombo > h->client->pers.nwBestCombo ) {
 				h->client->pers.nwBestCombo = h->client->nwCombo;
+			}
+			if ( h->client->nwCombo > nw_runBestCombo ) {
+				nw_runBestCombo = h->client->nwCombo;
 			}
 			G_Printf( "NeonWave: fake combo %i registered (best %i)\n",
 				n, h->client->pers.nwBestCombo );
