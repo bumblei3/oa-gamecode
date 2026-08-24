@@ -530,7 +530,9 @@ static void NW_GrantUpgradePoints( void ) {
 		gitem_t *quad = BG_FindItem( "Quad Damage" );
 		if ( quad ) {
 			// drop at the first connected client; under botasplayer (headless
-				// CI) the carrier is a bot, so don't exclude bots here
+				// CI) the carrier is a bot, so don't exclude bots here. If no
+				// client is alive at grant time (autokill cleared the wave),
+				// fall back to a player spawn point so the reward still drops.
 				gentity_t *spot = NULL;
 				int j;
 				for ( j = 0; j < level.maxclients && !spot; j++ ) {
@@ -538,6 +540,13 @@ static void NW_GrantUpgradePoints( void ) {
 					if ( e->inuse && e->client
 							&& e->client->pers.connected == CON_CONNECTED ) {
 						spot = e;
+					}
+				}
+				if ( !spot ) {
+					gentity_t *spawn = NULL;
+					while ( ( spawn = G_Find( spawn, FOFS( classname ), "info_player_deathmatch" ) ) != NULL ) {
+						spot = spawn;
+						break;
 					}
 				}
 			if ( spot ) {
