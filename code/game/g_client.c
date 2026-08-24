@@ -1197,12 +1197,15 @@ void ClientUserinfoChanged( int clientNum ) {
 			char hcBuf[8];
 			trap_Cvar_VariableStringBuffer( "g_neonwave_bosshc", hcBuf, sizeof(hcBuf) );
 			client->pers.maxHealth = atoi( hcBuf );
-			if ( client->pers.maxHealth < 400 ) {
-				client->pers.maxHealth = 400;
+			if ( client->pers.maxHealth < 200 ) {
+				client->pers.maxHealth = 400; // below glass-cannon tier -> classic 4x
 			}
 			client->pers.neonwaveBoss = qtrue;
 			if ( client->pers.maxHealth >= 600 ) {
 				client->pers.nwBossTank = qtrue;
+			}
+			if ( client->pers.maxHealth <= 200 ) {
+				client->pers.nwBossGlass = qtrue; // fast, fragile railgun boss
 			}
 		}
 		// NeonWave player upgrades: +25 max HP per level (cap +150)

@@ -980,6 +980,12 @@ void ClientThink_real( gentity_t *ent ) {
 			&& ent->client->pers.nwBossTank ) {
 		client->ps.speed = client->ps.speed * 6 / 10;
 	}
+	// NeonWave GLASS CANNON boss: 140% speed (fast and deadly, but 2x HP)
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& ( ent->r.svFlags & SVF_BOT )
+			&& ent->client->pers.nwBossGlass ) {
+		client->ps.speed = client->ps.speed * 14 / 10;
+	}
 
 	// NeonWave player speed upgrade: +5% per level (x10 fixed point)
 	if ( g_gametype.integer == GT_NEONWAVE

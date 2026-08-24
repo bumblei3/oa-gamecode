@@ -317,6 +317,7 @@ typedef struct {
 #ifdef NEONARENA_MOD
 	qboolean    neonwaveBoss; // NeonWave boss drone
 	qboolean    nwBossTank;   // NeonWave TANK boss (slow, 6x HP, MG)
+	qboolean    nwBossGlass;  // NeonWave GLASS CANNON boss (fast, 2x HP, rail)
 	int         neonwaveBossShield;    // TANK shield active (damage halved)
 	int         neonwaveBossShieldEnd; // time when the tank shield expires
 	int         neonwaveUpHp;   // +25 max HP per level

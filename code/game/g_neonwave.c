@@ -130,6 +130,7 @@ static void NW_SpawnBot( int skill ) {
 #define NW_BOSS_SNIPER	1	// railgun sniper (classic)
 #define NW_BOSS_TANK	2	// slow, huge HP, chaingun-style MG spam
 #define NW_BOSS_SWARM	3	// spawns mini-drones during the wave
+#define NW_BOSS_GLASS	4	// glass cannon: fast, 2x HP, railgun
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -138,18 +139,26 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_SWARM ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_GLASS ) {
 		return forced;
 	}
-	// rotate by boss-wave count: wave 10 = sniper, 20 = tank, 30 = swarm, ...
-	return NW_BOSS_SNIPER + (( nw_wave / NW_BOSS_WAVE - 1 ) % 3);
+	// rotate by boss-wave count: wave 10 = sniper, 20 = tank, 30 = swarm,
+	// 40 = glass cannon, ...
+	{
+		int rot = ( nw_wave / NW_BOSS_WAVE - 1 ) % 4;
+		if ( nw_wave / NW_BOSS_WAVE >= 4 ) {
+			return NW_BOSS_SNIPER + rot;
+		}
+		return NW_BOSS_SNIPER + (( nw_wave / NW_BOSS_WAVE - 1 ) % 3);
+	}
 }
 
 static const char *NW_BossName( int type ) {
 	switch ( type ) {
 	case NW_BOSS_TANK:	return "TANK";
 	case NW_BOSS_SWARM:	return "SWARM MOTHER";
-	default:			return "SNIPER";
+	case NW_BOSS_GLASS:	return "GLASS CANNON";
+	default:		return "SNIPER";
 	}
 }
 
@@ -160,7 +169,11 @@ static void NW_SpawnBoss( void ) {
 	if ( type == NW_BOSS_TANK ) {
 		hc = 600; // 6x
 	}
+	if ( type == NW_BOSS_GLASS ) {
+		hc = 200; // 2x — glass cannon: fragile but deadly
+	}
 	nw_bossType = type;
+	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
 	trap_Cvar_Set( "g_neonwave_nextboss", "1" );
 	trap_Cvar_Set( "g_neonwave_bosshc", va("%i", hc) );
 	trap_SendServerCommand( -1, va( "cp \"BOSS: %s\\n\"", NW_BossName( type ) ) );
