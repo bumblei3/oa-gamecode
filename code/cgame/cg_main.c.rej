@@ -1,0 +1,26 @@
+diff a/code/cgame/cg_main.c b/code/cgame/cg_main.c	(rejected hunks)
+@@ -1251,6 +1251,14 @@ static void CG_RegisterGraphics(void) {
+ 
+ 	cgs.media.bloodExplosionShader = trap_R_RegisterShader("bloodExplosion");
+ 
++#ifdef NEONARENA_MOD
++	cgs.media.neonDroneShellShader = trap_R_RegisterShader("neonarena/droneShell");
++	cgs.media.neonBossShellShader = trap_R_RegisterShader("neonarena/bossShell");
++	cgs.media.neonFlareShader = trap_R_RegisterShader("neonarena/flare");
++	cgs.media.neonVignetteShader = trap_R_RegisterShader("gfx/2d/neon_vignette");
++	cgs.media.neonBarShader = trap_R_RegisterShader("gfx/2d/neon_bar");
++#endif
++
+ 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
+ 	cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
+ 	cgs.media.dishFlashModel = trap_R_RegisterModel("models/weaphits/boom01.md3");
+@@ -2525,6 +2533,9 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
+ 	cg.consoleValid = qtrue;
+ #endif
+ 	// end loadingscreen
++#ifdef NEONARENA_MOD
++	trap_SendConsoleCommand("exec neon-look.cfg\n");
++#endif
+ }
+ 
+ /*

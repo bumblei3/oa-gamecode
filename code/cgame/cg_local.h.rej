@@ -1,0 +1,15 @@
+diff a/code/cgame/cg_local.h b/code/cgame/cg_local.h	(rejected hunks)
+@@ -864,6 +864,13 @@ typedef struct {
+ 
+ 
+ 
++#ifdef NEONARENA_MOD
++	qhandle_t	neonDroneShellShader;
++	qhandle_t	neonBossShellShader;
++	qhandle_t	neonFlareShader;
++	qhandle_t	neonVignetteShader;
++	qhandle_t	neonBarShader;
++#endif
+ 	// LEILEI shaders
+ 
+ 	qhandle_t	lsmkShader1;

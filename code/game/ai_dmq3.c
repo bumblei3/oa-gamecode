@@ -3041,6 +3041,12 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	for (i = 0; i < level.maxclients; i++) {
 
 		if (i == bs->client) continue;
+#ifdef NEONARENA_MOD
+		// NeonWave: bots only hunt humans, never each other
+		if ( gametype == GT_NEONWAVE && (g_entities[i].r.svFlags & SVF_BOT) ) {
+			continue;
+		}
+#endif
 		//if it's the current enemy
 		if (i == curenemy) continue;
 		//if the enemy has targeting disabled

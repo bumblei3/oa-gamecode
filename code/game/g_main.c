@@ -40,6 +40,9 @@ gentity_t		g_entities[MAX_GENTITIES];
 gclient_t		g_clients[MAX_CLIENTS];
 
 vmCvar_t g_gametype;
+#ifdef NEONARENA_MOD
+vmCvar_t g_neonwaveBest;
+#endif
 vmCvar_t g_dmflags;
 vmCvar_t g_videoflags;
 vmCvar_t g_elimflags;
@@ -212,6 +215,9 @@ static cvarTable_t gameCvarTable[] = {
 	{ &g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_USERINFO | CVAR_LATCH, 0, qfalse  },
 
 	{ &g_maxclients, "sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
+#ifdef NEONARENA_MOD
+	{ NULL, "g_neonwave_best", "0", CVAR_ARCHIVE, 0, qtrue  },
+#endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
 	// change anytime vars
@@ -598,12 +604,20 @@ void G_RegisterCvars( void )
 	}
 
 	//set FFA status for high gametypes:
-	if ( g_gametype.integer == GT_LMS || g_gametype.integer == GT_POSSESSION ) {
+	if ( g_gametype.integer == GT_LMS || g_gametype.integer == GT_POSSESSION
+#ifdef NEONARENA_MOD
+		|| g_gametype.integer == GT_NEONWAVE // wave survival is FFA: warmup must end without teams
+#endif
+	) {
 		g_ffa_gt = 1;	//Last Man standig is a FFA gametype
 	}
 	else {
 		g_ffa_gt = 0;	//If >GT_CTF use bases
 	}
+
+#ifdef NEONARENA_MOD
+	NeonWave_Reset();
+#endif
 
 	level.warmupModificationCount = g_warmup.modificationCount;
 }
@@ -2741,6 +2755,16 @@ void G_RunFrame( int levelTime )
 	if (g_gametype.integer == GT_POSSESSION && level.time > 5000) {
 		Possession_SpawnFlag();
 	}
+
+	// NeonArena wave-survival logic
+#ifdef NEONARENA_MOD
+	if ( g_gametype.integer == GT_NEONWAVE ) {
+		// hold waves until warmup is over (-1 = waiting, 0 = done)
+		if ( level.warmupTime == 0 ) {
+			NeonWave_Frame();
+		}
+	}
+#endif
 
 	// see if it is time to end the level
 	CheckExitRules();

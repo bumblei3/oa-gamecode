@@ -1,0 +1,18 @@
+diff a/code/game/g_items.c b/code/game/g_items.c	(rejected hunks)
+@@ -239,6 +239,16 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other)
+ {
+ 	int		quantity;
+ 
++#ifdef NEONARENA_MOD
++	// NeonWave: only railgun/lightning/gauntlet pickups allowed
++	if ( g_gametype.integer == GT_NEONWAVE ) {
++		int w = ent->item->giTag;
++		if ( w != WP_RAILGUN && w != WP_LIGHTNING && w != WP_GAUNTLET ) {
++			return 0; // leave item on the ground
++		}
++	}
++#endif
++
+ 	if ( ent->count < 0 ) {
+ 		quantity = 0; // None for you, sir!
+ 	}

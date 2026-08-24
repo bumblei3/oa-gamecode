@@ -1318,6 +1318,8 @@ ifndef TOOLS_CC
   # A compiler which probably produces native binaries
   TOOLS_CC = gcc
 endif
+# lcc sources use 'constexpr' as identifier, illegal in newer C standards
+TOOLS_CFLAGS += -std=gnu89
 
 TOOLS_OPTIMIZE = -g -Wall -fno-strict-aliasing
 TOOLS_CFLAGS += $(TOOLS_OPTIMIZE) \
@@ -2405,6 +2407,7 @@ Q3GOBJ_ = \
   $(B)/$(BASEGAME)/game/g_items.o \
   $(B)/$(BASEGAME)/game/g_killspree.o \
   $(B)/$(BASEGAME)/game/g_misc.o \
+  $(B)/$(BASEGAME)/game/g_neonwave.o \
   $(B)/$(BASEGAME)/game/g_missile.o \
   $(B)/$(BASEGAME)/game/g_mover.o \
   $(B)/$(BASEGAME)/game/g_playerstore.o \
@@ -2466,6 +2469,7 @@ MPGOBJ_ = \
   $(B)/$(MISSIONPACK)/game/g_items.o \
   $(B)/$(MISSIONPACK)/game/g_killspree.o \
   $(B)/$(MISSIONPACK)/game/g_misc.o \
+  $(B)/$(MISSIONPACK)/game/g_neonwave.o \
   $(B)/$(MISSIONPACK)/game/g_missile.o \
   $(B)/$(MISSIONPACK)/game/g_mover.o \
   $(B)/$(MISSIONPACK)/game/g_playerstore.o \

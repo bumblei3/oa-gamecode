@@ -1631,7 +1631,10 @@ static const char *gameNames[] = {
 	"Last Man Standing",
 	"Double Domination",
 	"Domination",
-	"Possession"
+	"Possession",
+#ifdef NEONARENA_MOD
+	"Neon Wave Survival",
+#endif
 };
 
 
@@ -2255,9 +2258,88 @@ void Cmd_GetMappage_f( gentity_t *ent ) {
 	trap_SendServerCommand( ent-g_entities, string );
 }
 
+/*
+===============
+Cmd_NeonUpgrade_f
+
+NeonWave: spend a banked upgrade point.
+Usage: upgrade hp | dmg | speed
+Levels: hp max 6, dmg max 5, speed max 5.
+===============
+*/
+#ifdef NEONARENA_MOD
+static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
+	char arg[16], ptsBuf[16];
+	int pts, *level, cap;
+	const char *what;
+
+	if ( g_gametype.integer != GT_NEONWAVE ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Upgrades only in NeonWave\n\"" );
+		return;
+	}
+	if ( ent->r.svFlags & SVF_BOT ) {
+		return;
+	}
+	if ( !NeonWave_IsBreak() ) {
+		trap_SendServerCommand( ent - g_entities,
+			"print \"Spend upgrades between waves (F1 HP / F2 DMG / F3 SPEED)\n\"" );
+		return;
+	}
+
+	trap_Cvar_VariableStringBuffer( "g_neonwave_upgradepoints", ptsBuf, sizeof(ptsBuf) );
+	pts = atoi( ptsBuf );
+	if ( pts < 1 ) {
+		trap_SendServerCommand( ent - g_entities,
+			"print \"No upgrade points banked\n\"" );
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof(arg) );
+	if ( !Q_stricmp( arg, "hp" ) || !Q_stricmp( arg, "1" ) ) {
+		level = &ent->client->pers.neonwaveUpHp; cap = 6; what = "+25 max HP";
+	} else if ( !Q_stricmp( arg, "dmg" ) || !Q_stricmp( arg, "2" ) ) {
+		level = &ent->client->pers.neonwaveDmg; cap = 5; what = "+10% damage";
+	} else if ( !Q_stricmp( arg, "speed" ) || !Q_stricmp( arg, "3" ) ) {
+		level = &ent->client->pers.neonwaveSpeed; cap = 5; what = "+5% speed";
+	} else {
+		trap_SendServerCommand( ent - g_entities,
+			"print \"usage: upgrade hp|dmg|speed  (F1/F2/F3 between waves)\n\"" );
+		return;
+	}
+
+	if ( *level >= cap ) {
+		trap_SendServerCommand( ent - g_entities,
+			va("print \"%s already at max level %i\n\"", arg, cap) );
+		return;
+	}
+	(*level)++;
+	pts--;
+	trap_Cvar_Set( "g_neonwave_upgradepoints", va("%i", pts) );
+
+	// apply immediately: raise max + heal on HP upgrade
+	if ( level == &ent->client->pers.neonwaveUpHp ) {
+		ent->client->pers.maxHealth += 25;
+		ent->client->ps.stats[STAT_MAX_HEALTH] = ent->client->pers.maxHealth;
+		ent->health += 25;
+		ent->client->ps.stats[STAT_HEALTH] = ent->health;
+	}
+
+	trap_SendServerCommand( ent - g_entities,
+		va("print \"UPGRADE: %s -> level %i (%i points left)\n\"", what, *level, pts) );
+	trap_SendServerCommand( ent - g_entities,
+		va("cp \"%s  LV %i\n\"", what, *level) );
+	G_Printf( "NeonWave: %s upgraded %s to level %i\n",
+		ent->client->pers.netname, arg, *level );
+	NeonWave_RefreshStatus();
+}
+#endif
+
 //KK-OAX This is the table that ClientCommands runs the console entry against. 
-commands_t cmds[ ] = 
+commands_t cmds[ ] =
 {
+#ifdef NEONARENA_MOD
+	{ "upgrade", 0, Cmd_NeonUpgrade_f },
+#endif
 	// normal commands
 	{ "team", 0, Cmd_Team_f },
 	{ "vote", 0, Cmd_Vote_f },

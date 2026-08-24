@@ -1233,6 +1233,273 @@ static float CG_DrawDomStatus(float y) {
 
 /*
 =================
+CG_DrawNeonWave
+=================
+ */
+#ifdef NEONARENA_MOD
+static void CG_DrawNeonLook(void) {
+	vec4_t dim = {0.00f, 0.02f, 0.05f, 0.20f};
+	int bossHp = 0, bossMax = 0;
+
+	// boss alive? -> pulsing magenta danger vignette
+	{
+		const char *cs = CG_ConfigString(CS_NEONWAVE);
+		if (cs && cs[0] && sscanf(cs, "%*i %*i %i %i", &bossHp, &bossMax) == 2
+			&& bossHp > 0 && bossMax > 0) {
+			float pulse = 0.5f + 0.5f * (float)sin(cg.time / 350.0);
+			vec4_t mag;
+			mag[0] = 0.35f; mag[1] = 0.0f; mag[2] = 0.30f;
+			mag[3] = 0.10f + 0.12f * pulse * bossHp / bossMax;
+			CG_FillRect(0, 0, 640, 480, mag);
+		}
+	}
+
+	CG_FillRect(0, 0, 640, 480, dim);
+	if (cgs.media.neonVignetteShader) {
+		CG_DrawPic(0, 0, 640, 480, cgs.media.neonVignetteShader);
+	}
+}
+
+static float CG_DrawNeonWave(float y) {
+	char s[64];
+	int w, wave, ev, best;
+	vec4_t color = {0.2f, 1.0f, 1.0f, 1.0f};
+	static int lastWaveEvent = -1;
+	static qboolean setCvar = qfalse;
+
+	trap_Cvar_VariableStringBuffer("ui_neonwave", s, sizeof(s));
+	if (!s[0]) {
+		const char *cs = CG_ConfigString(CS_NEONWAVE);
+		if (cs && cs[0]) {
+			sscanf(cs, "%i %i", &wave, &ev);
+			if (wave > 0) {
+				Com_sprintf(s, sizeof(s), "WAVE %i%s", wave,
+					ev == 1 ? " CLEARED" : "");
+				// jingle on transitions
+				if (lastWaveEvent != wave * 10 + ev) {
+					if (!setCvar) setCvar = qtrue;
+					lastWaveEvent = wave * 10 + ev;
+					if (ev == 1) trap_S_StartLocalSound(cgs.media.count3Sound, CHAN_ANNOUNCER);
+					else trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
+				}
+			}
+		}
+	}
+	if (!s[0]) return y;
+
+	color[3] = 0.78f + 0.22f * (float)sin(cg.time / 220.0);
+	w = CG_DrawStrlen(s) * BIGCHAR_WIDTH;
+	{
+		vec4_t frame = {0.05f, 0.18f, 0.22f, 0.55f};
+		CG_FillRect(320 - w/2 - 12, y - 4, w + 24, BIGCHAR_HEIGHT + 8, frame);
+		if (cgs.media.neonBarShader) {
+			CG_DrawPic(320 - w/2 - 14, y - 6, w + 28, BIGCHAR_HEIGHT + 12, cgs.media.neonBarShader);
+		}
+	}
+	CG_DrawBigStringColor(320 - w/2, y, s, color);
+	y += BIGCHAR_HEIGHT + 8;
+
+	// live combo popup: field 12 of the payload; shows while a streak of 2+
+	// is hot (3s window maintained by g_combat.c)
+	{
+		const char *csC = CG_ConfigString(CS_NEONWAVE);
+		int liveCombo = 0;
+		static int shownCombo = 0;
+		if (csC && csC[0] && sscanf(csC,
+				"%*i %*i %*i %*i %*i %*i %*i %*i %*i %*i %*i %i", &liveCombo) == 1
+			&& liveCombo >= 2 && ev == 0) {
+			float pulse = 0.7f + 0.3f * (float)sin(cg.time / 90.0);
+			vec4_t comboColor = {1.0f, 0.55f, 0.1f, 1.0f};
+			comboColor[3] = pulse;
+			Com_sprintf(s, sizeof(s), "COMBO x%i!", liveCombo);
+			w = CG_DrawStrlen(s) * BIGCHAR_WIDTH * 2;
+			CG_DrawBigStringColor(320 - w/2, y + 4, s, comboColor);
+			shownCombo = liveCombo;
+		} else if (shownCombo >= 5 && ev == 1) {
+			// streak survived the wave: brief golden flash on clear
+			vec4_t gold = {1.0f, 0.85f, 0.2f, 1.0f};
+			Com_sprintf(s, sizeof(s), "COMBO x%i SAVED", shownCombo);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y + 4, s, gold);
+		} else {
+			shownCombo = 0;
+		}
+		y += BIGCHAR_HEIGHT + 10;
+	}
+
+	// modifier color coding: field 8 of the payload tints the screen edge
+	// GLASS=cyan pulse SWARM=orange LOWGRAV=violet DOUBLEPTS=gold
+	{
+		const char *csM = CG_ConfigString(CS_NEONWAVE);
+		int mod = 0;
+		if (csM && csM[0] && sscanf(csM,
+				"%*i %*i %*i %*i %*i %*i %*i %i", &mod) == 1 && mod > 0
+			&& ev == 0) {
+			vec4_t tint;
+			float pulse = 0.5f + 0.5f * (float)sin(cg.time / 300.0);
+			switch (mod) {
+			case 1: tint[0]=0.0f; tint[1]=0.6f; tint[2]=0.8f; break; // glass: cyan
+			case 2: tint[0]=0.8f; tint[1]=0.4f; tint[2]=0.0f; break; // swarm: orange
+			case 3: tint[0]=0.5f; tint[1]=0.0f; tint[2]=0.8f; break; // lowgrav: violet
+			default: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break; // dbl pts: gold
+			}
+			tint[3] = 0.06f + 0.08f * pulse;
+			// top and bottom edge bars instead of full-screen fill
+			CG_FillRect(0, 0, 640, 24, tint);
+			CG_FillRect(0, 456, 640, 24, tint);
+		}
+	}
+
+	// best-wave line
+	{
+		char bestBuf[16];
+		trap_Cvar_VariableStringBuffer("g_neonwave_best", bestBuf, sizeof(bestBuf));
+		best = atoi(bestBuf);
+	}
+	if (best > 0) {
+		Com_sprintf(s, sizeof(s), "BEST %i", best);
+		w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+		CG_DrawSmallStringColor(320 - w/2, y, s, color);
+		y += SMALLCHAR_HEIGHT + 4;
+	}
+
+	// boss health bar (payload: "<wave> <ev> <bossHp> <bossMax>")
+	{
+		const char *cs = CG_ConfigString(CS_NEONWAVE);
+		int bossHp = 0, bossMax = 0;
+		if (cs && cs[0] && sscanf(cs, "%*i %*i %i %i", &bossHp, &bossMax) == 2
+			&& bossHp > 0 && bossMax > 0) {
+			vec4_t magenta = {1.0f, 0.2f, 1.0f, 1.0f};
+			vec4_t magentaDim = {0.18f, 0.04f, 0.22f, 0.85f};
+			vec4_t magentaGlow = {0.55f, 0.08f, 0.55f, 0.35f};
+			int barW = 260, barH = 12;
+			int fill = bossHp * (barW - 4) / bossMax;
+			int bx = 320 - barW / 2;
+			Com_sprintf(s, sizeof(s), "BOSS");
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, magenta);
+			y += SMALLCHAR_HEIGHT + 2;
+			CG_FillRect(bx - 3, y - 2, barW + 6, barH + 4, magentaGlow);
+			CG_FillRect(bx, y, barW, barH, magentaDim);
+			CG_FillRect(bx + 2, y + 2, fill, barH - 4, magenta);
+			if (cgs.media.neonBarShader) {
+				CG_DrawPic(bx - 4, y - 4, barW + 8, barH + 8, cgs.media.neonBarShader);
+			}
+			y += barH + 6;
+		}
+	}
+
+	// upgrade status: points + levels (packed by NW_SyncUpgrades into
+	// ps.persistant[PERS_CAPTURES]: bits 0-7 pts, 8-11 hp, 12-15 dmg, 16-19 spd)
+	{
+		int up = cg.snap->ps.persistant[PERS_CAPTURES];
+		int pts = up & 0xFF;
+		int lvHp = (up >> 8) & 0xF, lvDmg = (up >> 12) & 0xF, lvSpd = (up >> 16) & 0xF;
+		vec4_t gold = {1.0f, 0.85f, 0.2f, 1.0f};
+		vec4_t dimw = {0.55f, 0.55f, 0.6f, 1.0f};
+
+		if (pts > 0) {
+			Com_sprintf(s, sizeof(s), "UPGRADE POINTS: %i", pts);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, gold);
+			y += SMALLCHAR_HEIGHT + 2;
+			Com_sprintf(s, sizeof(s), "F1 HP   F2 DMG   F3 SPD");
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, dimw);
+			y += SMALLCHAR_HEIGHT + 4;
+		}
+		if (lvHp || lvDmg || lvSpd) {
+			Com_sprintf(s, sizeof(s), "HP %i/6  DMG %i/5  SPD %i/5", lvHp, lvDmg, lvSpd);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, gold);
+			y += SMALLCHAR_HEIGHT + 4;
+		}
+	}
+
+	// run-end stats overlay: "<wave> <ev> ... <mod> <kills> <bestcombo> <runsec>"
+	if (ev == 2 || ev == 3) {
+		const char *cs = CG_ConfigString(CS_NEONWAVE);
+		int kills = 0, combo = 0, runsec = 0;
+		vec4_t endColor;
+		vec4_t statw = {0.85f, 0.85f, 0.9f, 1.0f};
+		vec4_t panel = {0.03f, 0.05f, 0.10f, 0.72f};
+
+		if (ev == 3) {
+			endColor[0] = 0.2f; endColor[1] = 1.0f; endColor[2] = 0.35f; endColor[3] = 1.0f;
+		} else {
+			endColor[0] = 1.0f; endColor[1] = 0.25f; endColor[2] = 0.25f; endColor[3] = 1.0f;
+		}
+
+		if (cs && cs[0] && sscanf(cs, "%*i %*i %*i %*i %*i %*i %*i %*i %i %i %i",
+				&kills, &combo, &runsec) == 3) {
+			int py = 150;
+			CG_FillRect(170, py - 20, 300, 130, panel);
+			Com_sprintf(s, sizeof(s), ev == 3 ? "VICTORY" : "RUN OVER");
+			w = CG_DrawStrlen(s) * BIGCHAR_WIDTH * 2;
+			// draw scaled-up title via big string at center
+			CG_DrawBigStringColor(320 - CG_DrawStrlen(s)*BIGCHAR_WIDTH/2, py, s, endColor);
+			py += BIGCHAR_HEIGHT + 12;
+
+			Com_sprintf(s, sizeof(s), "WAVES SURVIVED: %i", wave > 0 ? wave : 0);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, py, s, statw); py += SMALLCHAR_HEIGHT + 6;
+
+			Com_sprintf(s, sizeof(s), "KILLS: %i", kills);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, py, s, statw); py += SMALLCHAR_HEIGHT + 6;
+
+			Com_sprintf(s, sizeof(s), "BEST COMBO: %ix", combo);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, py, s, statw); py += SMALLCHAR_HEIGHT + 6;
+
+			Com_sprintf(s, sizeof(s), "TIME: %i:%02i", runsec / 60, runsec % 60);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, py, s, statw); py += SMALLCHAR_HEIGHT + 6;
+
+			// all-time records (mirrored to cvars by NW_UpdateRecords)
+			{
+				char rw[8], rt[16], rk[8], rc[8], nr[8];
+				int riw, rit, rik, ric;
+				trap_Cvar_VariableStringBuffer("g_neonwave_recwave", rw, sizeof(rw));
+				trap_Cvar_VariableStringBuffer("g_neonwave_rectime", rt, sizeof(rt));
+				trap_Cvar_VariableStringBuffer("g_neonwave_reckills", rk, sizeof(rk));
+				trap_Cvar_VariableStringBuffer("g_neonwave_reccombo", rc, sizeof(rc));
+				trap_Cvar_VariableStringBuffer("g_neonwave_newrecord", nr, sizeof(nr));
+				riw = atoi(rw); rit = atoi(rt); rik = atoi(rk); ric = atoi(rc);
+				if (riw > 0) {
+					vec4_t recGold = {1.0f, 0.85f, 0.2f, 1.0f};
+					if (rit > 0) {
+						Com_sprintf(s, sizeof(s), "RECORDS: WAVE %i  TIME %i:%02i  KILLS %i  COMBO %ix",
+							riw, rit / 60, rit % 60, rik, ric);
+					} else {
+						Com_sprintf(s, sizeof(s), "RECORDS: WAVE %i  KILLS %i  COMBO %ix",
+							riw, rik, ric);
+					}
+					w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+					CG_DrawSmallStringColor(320 - w/2, py, s, recGold);
+					py += SMALLCHAR_HEIGHT + 6;
+				}
+				if (atoi(nr) == 1) {
+					// fresh record this run: pulsing banner
+					vec4_t nrColor = {1.0f, 0.9f, 0.1f, 1.0f};
+					float pulse = 0.6f + 0.4f * (float)sin(cg.time / 120.0);
+					nrColor[3] = pulse;
+					Com_sprintf(s, sizeof(s), "** NEW RECORD **");
+					w = CG_DrawStrlen(s) * BIGCHAR_WIDTH * 2;
+					CG_DrawBigStringColor(320 - w/2, py + 4, s, nrColor);
+					py += BIGCHAR_HEIGHT + 10;
+				}
+			}
+
+			y += 8; // keep flow stable
+		}
+	}
+	return y;
+}
+#endif
+
+/*
+=================
 CG_DrawCountdownTimer
 =================
  */
@@ -1680,6 +1947,11 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame) {
 	} else if (cgs.gametype == GT_POSSESSION) {
 		y = CG_DrawPossessionString(y);
 	}
+#ifdef NEONARENA_MOD
+	else if (cgs.gametype == GT_NEONWAVE) {
+		y = CG_DrawNeonWave(y);
+	}
+#endif
 
 	if (cg_drawSnapshot.integer) {
 		y = CG_DrawSnapshot(y);
@@ -3571,6 +3843,12 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 		CG_DrawIntermission();
 		return;
 	}
+
+#ifdef NEONARENA_MOD
+	if (cgs.gametype == GT_NEONWAVE) {
+		CG_DrawNeonLook();
+	}
+#endif
 
 	/*
 		if (cg.cameraMode) {

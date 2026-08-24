@@ -1,0 +1,20 @@
+diff a/code/game/g_bot.c b/code/game/g_bot.c	(rejected hunks)
+@@ -734,6 +734,18 @@ static void G_AddBot( const char *name, float skill, const char *team, int delay
+ 	}
+ 	Info_SetValueForKey( userinfo, "characterfile", s );
+ 
++#ifdef NEONARENA_MOD
++	// NeonWave boss flag (set by addbot console command via +set)
++	{
++		char bossBuf[4];
++		trap_Cvar_VariableStringBuffer( "g_neonwave_nextboss", bossBuf, sizeof(bossBuf) );
++		if ( bossBuf[0] == '1' ) {
++			Info_SetValueForKey( userinfo, "neonwave_boss", "1" );
++			trap_Cvar_Set( "g_neonwave_nextboss", "0" );
++		}
++	}
++#endif
++
+ 	// don't send tinfo to bots, they don't parse it
+ 	Info_SetValueForKey( userinfo, "teamoverlay", "0" );
+ 

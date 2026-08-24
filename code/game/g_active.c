@@ -973,6 +973,24 @@ void ClientThink_real( gentity_t *ent ) {
 	// set speed
 	client->ps.speed = g_speed.value;
 
+#ifdef NEONARENA_MOD
+	// NeonWave TANK boss: 60% speed (slow brute)
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& ( ent->r.svFlags & SVF_BOT )
+			&& ent->client->pers.nwBossTank ) {
+		client->ps.speed = client->ps.speed * 6 / 10;
+	}
+
+	// NeonWave player speed upgrade: +5% per level (x10 fixed point)
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& !( ent->r.svFlags & SVF_BOT )
+			&& client->pers.neonwaveSpeed > 0 ) {
+		int mul = 10 + client->pers.neonwaveSpeed;
+		if ( mul > 15 ) mul = 15;
+		client->ps.speed = client->ps.speed * mul / 10;
+	}
+#endif
+
 	if( bg_itemlist[client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_SCOUT ) {
 		client->ps.speed *= 1.5;
 	}
@@ -1131,6 +1149,16 @@ void ClientThink_real( gentity_t *ent ) {
 
 	// check for respawning
 	if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
+#ifdef NEONARENA_MOD
+		// NeonWave: one life. Bots disconnect so they free a slot; humans stay
+		// dead until NeonWave_Frame trips game over.
+		if ( g_gametype.integer == GT_NEONWAVE ) {
+			if ( ( ent->r.svFlags & SVF_BOT ) && level.time > client->respawnTime ) {
+				trap_DropClient( ent - g_entities, "eliminated" );
+			}
+			return;
+		}
+#endif
 		// wait for the attack button to be pressed
 		// forcerespawn is to prevent users from waiting out powerups
 		// In Last man standing, we force a quick respawn, since

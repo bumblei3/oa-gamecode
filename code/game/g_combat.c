@@ -505,6 +505,26 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		return;
 	}
 
+#ifdef NEONARENA_MOD
+	// NeonWave: drone killed by a human -> count kills + combo streak
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& attacker && attacker->client && attacker != self
+			&& !( attacker->r.svFlags & SVF_BOT )
+			&& ( self->r.svFlags & SVF_BOT ) ) {
+		int now = level.time;
+		if ( now - attacker->client->nwLastKillTime < 3000 ) {
+			attacker->client->nwCombo++;
+		} else {
+			attacker->client->nwCombo = 1;
+		}
+		attacker->client->nwLastKillTime = now;
+		attacker->client->pers.nwKills++;
+		if ( attacker->client->nwCombo > attacker->client->pers.nwBestCombo ) {
+			attacker->client->pers.nwBestCombo = attacker->client->nwCombo;
+		}
+	}
+#endif
+
 //unlagged - backward reconciliation #2
 	// make sure the body shows up in the client's current position
 	G_UnTimeShiftClient( self );
@@ -1265,6 +1285,18 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	if(g_damageModifier.value > 0.01) {
 		damage *= g_damageModifier.value;
 	}
+
+#ifdef NEONARENA_MOD
+	// NeonWave player damage upgrade: +10% per level (x10 fixed point)
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& attacker->client && targ != attacker
+			&& !(attacker->r.svFlags & SVF_BOT)
+			&& attacker->client->pers.neonwaveDmg > 0 ) {
+		int mul = 10 + attacker->client->pers.neonwaveDmg;
+		if ( mul > 20 ) mul = 20;
+		damage = damage * mul / 10;
+	}
+#endif
 
 	if ( damage < 1 ) {
 		damage = 1;
