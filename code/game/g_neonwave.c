@@ -64,6 +64,61 @@ static int nw_event;
 static qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
 static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
 
+// ---- daily challenge (v0.14) ----
+// Deterministic per-date challenge: an FNV-1a hash over YYYY-MM-DD derives
+// a boss rotation offset and modifier rotation offset, so every player gets
+// the same boss/modifier sequence on the same day. Enable via
+// g_neonwave_daily 1 (or force a seed with g_neonwave_dailyseed N for tests).
+static qboolean nw_dailyActive;
+static int nw_dailyOffset;		// modifier pool rotation 0-3
+static int nw_dailyBossOffset;	// boss rotation offset 0-3
+
+#define NW_DAILY_FNV_PRIME		16777619u
+#define NW_DAILY_FNV_OFFSET		2166136261u
+
+static unsigned int NW_DailyHash( const char *s ) {
+	unsigned int h = NW_DAILY_FNV_OFFSET;
+	while ( *s ) {
+		h ^= (unsigned char)*s++;
+		h *= NW_DAILY_FNV_PRIME;
+	}
+	return h;
+}
+
+static void NW_DailyInit( void ) {
+	char buf[16];
+	qtime_t tm;
+	char dateStr[32];
+	int forced;
+
+	nw_dailyActive = qfalse;
+	nw_dailyOffset = 0;
+	nw_dailyBossOffset = 0;
+
+	trap_Cvar_VariableStringBuffer( "g_neonwave_daily", buf, sizeof(buf) );
+	if ( atoi( buf ) != 1 ) {
+		return;
+	}
+	// test hook: g_neonwave_dailyseed N forces the seed value
+	trap_Cvar_VariableStringBuffer( "g_neonwave_dailyseed", buf, sizeof(buf) );
+	forced = atoi( buf );
+	if ( forced > 0 ) {
+		G_Printf( "NeonWave: DAILY CHALLENGE seed %i (forced)\n", forced );
+	} else {
+		trap_RealTime( &tm );
+		Com_sprintf( dateStr, sizeof( dateStr ), "%04i-%02i-%02i",
+			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday );
+		forced = (int)( NW_DailyHash( dateStr ) & 0x7fffffff );
+		G_Printf( "NeonWave: DAILY CHALLENGE %s seed %i\n", dateStr, forced );
+	}
+	nw_dailyActive = qtrue;
+	nw_dailyOffset = forced % 4;
+	nw_dailyBossOffset = ( forced / 4 ) % 4;
+}
+
+// daily records use their own file so normal bests stay untouched
+#define NW_DAILY_RECORDS_FILE	"neonwave_daily_records.dat"
+
 // forward declarations (records block is defined further down)
 static void NW_LoadRecords( void );
 static void NW_MirrorRecordCvars( void );
@@ -81,6 +136,7 @@ void NeonWave_Reset( void ) {
 	nw_waveHadBots = qfalse;
 	nw_overVictory = qfalse;
 	nw_bossAttr = 0;
+	NW_DailyInit();
 	NW_LoadRecords();
 	nw_over = qfalse;
 	nw_event = 0;
@@ -145,13 +201,16 @@ static int NW_PickBossType( void ) {
 		return forced;
 	}
 	// rotate by boss-wave count: wave 10 = sniper, 20 = tank, 30 = swarm,
-	// 40 = glass cannon, ...
+	// 40 = glass cannon, ... daily challenge shifts the rotation start
 	{
 		int rot = ( nw_wave / NW_BOSS_WAVE - 1 ) % 4;
+		if ( nw_dailyActive ) {
+			rot = ( rot + nw_dailyBossOffset ) % 4;
+		}
 		if ( nw_wave / NW_BOSS_WAVE >= 4 ) {
 			return NW_BOSS_SNIPER + rot;
 		}
-		return NW_BOSS_SNIPER + (( nw_wave / NW_BOSS_WAVE - 1 ) % 3);
+		return NW_BOSS_SNIPER + ( rot % 3 );
 	}
 }
 
@@ -431,8 +490,12 @@ static void NW_PickModifier( int num ) {
 		nw_modifier = atoi( mbBuf );
 		return;
 	}
-	// deterministic-ish variety: rotate through the pool by wave number
-	idx = ( num / 2 + num % 3 ) % 4;
+	// daily challenge: derive the modifier rotation offset from the date seed
+	if ( nw_dailyActive ) {
+		idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 4;
+	} else {
+		idx = ( num / 2 + num % 3 ) % 4;
+	}
 	nw_modifier = pool[idx];
 }
 
