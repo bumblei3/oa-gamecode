@@ -42,6 +42,7 @@ gclient_t		g_clients[MAX_CLIENTS];
 vmCvar_t g_gametype;
 #ifdef NEONARENA_MOD
 vmCvar_t g_neonwaveBest;
+vmCvar_t g_neonwaveBossAttr;
 #endif
 vmCvar_t g_dmflags;
 vmCvar_t g_videoflags;
@@ -217,6 +218,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ &g_maxclients, "sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 #ifdef NEONARENA_MOD
 	{ NULL, "g_neonwave_best", "0", CVAR_ARCHIVE, 0, qtrue  },
+	{ &g_neonwaveBossAttr, "g_neonwave_bossattr", "0", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
