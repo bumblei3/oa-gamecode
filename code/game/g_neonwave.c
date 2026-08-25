@@ -196,6 +196,7 @@ static void NW_SpawnBot( int skill ) {
 #define NW_BOSS_TANK	2	// slow, huge HP, chaingun-style MG spam
 #define NW_BOSS_SWARM	3	// spawns mini-drones during the wave
 #define NW_BOSS_GLASS	4	// glass cannon: fast, 2x HP, railgun
+#define NW_BOSS_WARDEN	5	// v0.15: teleport-strikes the player's zone + brief armor phase
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -204,7 +205,7 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_GLASS ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_WARDEN ) {
 		return forced;
 	}
 	// rotate by boss-wave count: wave 10 = sniper, 20 = tank, 30 = swarm,
@@ -226,6 +227,7 @@ static const char *NW_BossName( int type ) {
 	case NW_BOSS_TANK:	return "TANK";
 	case NW_BOSS_SWARM:	return "SWARM MOTHER";
 	case NW_BOSS_GLASS:	return "GLASS CANNON";
+	case NW_BOSS_WARDEN:	return "WARDEN";
 	default:		return "SNIPER";
 	}
 }
@@ -239,6 +241,9 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_GLASS ) {
 		hc = 200; // 2x — glass cannon: fragile but deadly
+	}
+	if ( type == NW_BOSS_WARDEN ) {
+		hc = 500; // 5x — warden: tanky teleporter
 	}
 	nw_bossType = type;
 	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
@@ -856,6 +861,53 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 					}
 				}
 			}
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_WARDEN ) {
+		// v0.15 WARDEN: periodically teleports INTO the player's zone
+		// (offensive strike, opposite of the sniper's escape dash), then
+		// gains a brief armor phase after arriving so the player must
+		// reposition before trading damage.
+		// test hook g_neonwave_wardenforce 1 forces the strike immediately
+		static int nextStrike;
+		char wfBuf[8];
+		int forcedStrike;
+		gentity_t *boss = NW_FindBoss();
+		gentity_t *player = NULL;
+		int i;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_wardenforce", wfBuf, sizeof(wfBuf) );
+		forcedStrike = atoi( wfBuf );
+		if ( level.time > nextStrike || forcedStrike == 1 ) {
+			nextStrike = level.time + 8000;
+			// nearest connected human (or bot carrier under botasplayer)
+			for ( i = 0; i < level.maxclients && !player; i++ ) {
+				gentity_t *e = &g_entities[i];
+				if ( e->inuse && e->client
+						&& e->client->pers.connected == CON_CONNECTED
+						&& e->health > 0 ) {
+					player = e;
+				}
+			}
+			if ( boss && player ) {
+				vec3_t org;
+				VectorCopy( player->r.currentOrigin, org );
+				org[0] += ( rand() % 300 ) - 150; // land close but not on top
+				org[1] += ( rand() % 300 ) - 150;
+				VectorCopy( org, boss->s.origin );
+				VectorCopy( org, boss->client->ps.origin );
+				G_Printf( "NeonWave: WARDEN strikes the player zone\n" );
+				// armor phase: 3 s of damage reduction via health buffer top-up
+				boss->client->pers.neonwaveBossShield = 1;
+				boss->client->pers.neonwaveBossShieldEnd = level.time + 3000;
+				G_Printf( "NeonWave: WARDEN raises armor\n" );
+			}
+		}
+		// drop the armor flag when the phase ends (log once)
+		if ( boss && boss->client->pers.neonwaveBossShield
+				&& level.time > boss->client->pers.neonwaveBossShieldEnd ) {
+			boss->client->pers.neonwaveBossShield = 0;
+			G_Printf( "NeonWave: WARDEN armor drops\n" );
 		}
 	}
 
