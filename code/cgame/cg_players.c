@@ -2606,6 +2606,13 @@ void CG_AddRefEntityWithPowerups(refEntity_t *ent, entityState_t *state, int tea
 					trap_R_AddRefEntityToScene(ent);
 					ent->customShader = 0;
 				}
+				// boss only: second additive pulse layer with a faster,
+				// overlapping deform rhythm so the shell visibly "breathes"
+				if (boss && cgs.media.neonBossShellPulseShader) {
+					ent->customShader = cgs.media.neonBossShellPulseShader;
+					trap_R_AddRefEntityToScene(ent);
+					ent->customShader = 0;
+				}
 			}
 		}
 #endif

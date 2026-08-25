@@ -1313,6 +1313,12 @@ static float CG_DrawNeonWave(float y) {
 			comboColor[3] = pulse;
 			Com_sprintf(s, sizeof(s), "COMBO x%i!", liveCombo);
 			w = CG_DrawStrlen(s) * BIGCHAR_WIDTH * 2;
+			// golden chest glow behind the combo text (additive, pulses)
+			if (cgs.media.neonComboChestShader && liveCombo >= 5) {
+				trap_R_SetColor(NULL);
+				CG_DrawPic(320 - w/2 - 20, y - 8, w + 40, BIGCHAR_HEIGHT + 24,
+					cgs.media.neonComboChestShader);
+			}
 			CG_DrawBigStringColor(320 - w/2, y + 4, s, comboColor);
 			shownCombo = liveCombo;
 		} else if (shownCombo >= 5 && ev == 1) {
@@ -1347,6 +1353,13 @@ static float CG_DrawNeonWave(float y) {
 			// top and bottom edge bars instead of full-screen fill
 			CG_FillRect(0, 0, 640, 24, tint);
 			CG_FillRect(0, 456, 640, 24, tint);
+			// additive edge glow behind the tint bars for more neon punch
+			if (cgs.media.neonModifierEdgeShader) {
+				trap_R_SetColor(&tint[0]);
+				CG_DrawPic(0, 0, 640, 32, cgs.media.neonModifierEdgeShader);
+				CG_DrawPic(0, 448, 640, 32, cgs.media.neonModifierEdgeShader);
+				trap_R_SetColor(NULL);
+			}
 		}
 	}
 

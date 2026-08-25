@@ -3722,8 +3722,16 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 		mark = cgs.media.holeMarkShader;
 		radius = 12;
 #ifdef NEONARENA_MOD
-		// NeonArena: cyan spark flash at LG impact point
-		if ( cgs.media.neonFlareShader ) {
+		// NeonArena: layered cyan spark burst at LG impact point
+		if ( cgs.media.neonLgSparkShader ) {
+			shader = cgs.media.neonLgSparkShader;
+			isSprite = qtrue;
+			duration = 200;
+			light = 110;
+			lightColor[0] = 0.2f;
+			lightColor[1] = 1.0f;
+			lightColor[2] = 1.0f;
+		} else if ( cgs.media.neonFlareShader ) {
 			shader = cgs.media.neonFlareShader;
 			isSprite = qtrue;
 			duration = 150;
@@ -3791,8 +3799,17 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 		mark = cgs.media.energyMarkShader;
 		radius = 24;
 #ifdef NEONARENA_MOD
-		// NeonArena: cyan energy burst + tinted dlight on rail impact
-		if ( cgs.media.neonFlareShader ) {
+		// NeonArena: layered cyan rail impact glow + tinted dlight
+		if ( cgs.media.neonRailImpactShader ) {
+			shader = cgs.media.neonRailImpactShader;
+			isSprite = qtrue;
+			duration = 400;
+			radius = 32;
+			light = 240;
+			lightColor[0] = 0.2f;
+			lightColor[1] = 1.0f;
+			lightColor[2] = 1.0f;
+		} else if ( cgs.media.neonFlareShader ) {
 			shader = cgs.media.neonFlareShader;
 			isSprite = qtrue;
 			duration = 350;

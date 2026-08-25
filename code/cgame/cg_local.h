@@ -870,6 +870,11 @@ typedef struct {
 	qhandle_t	neonFlareShader;
 	qhandle_t	neonVignetteShader;
 	qhandle_t	neonBarShader;
+	qhandle_t	neonBossShellPulseShader;
+	qhandle_t	neonModifierEdgeShader;
+	qhandle_t	neonComboChestShader;
+	qhandle_t	neonRailImpactShader;
+	qhandle_t	neonLgSparkShader;
 #endif
 	// LEILEI shaders
 
