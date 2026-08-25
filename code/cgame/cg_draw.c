@@ -1273,7 +1273,16 @@ static float CG_DrawNeonWave(float y) {
 		if (cs && cs[0]) {
 			sscanf(cs, "%i %i", &wave, &ev);
 			if (wave > 0) {
-				Com_sprintf(s, sizeof(s), "WAVE %i%s", wave,
+				// daily mode badge: read server cvar mirror (set via configstring
+				// presence of the daily flag is not visible to cgame, so use the
+				// client-side cvar which the server sets on daily activation)
+				qboolean daily = qfalse;
+				{
+					char dbuf[8];
+					trap_Cvar_VariableStringBuffer("ui_neonwave_daily", dbuf, sizeof(dbuf));
+					daily = (atoi(dbuf) == 1);
+				}
+				Com_sprintf(s, sizeof(s), daily ? "DAILY WAVE %i%s" : "WAVE %i%s", wave,
 					ev == 1 ? " CLEARED" : "");
 				// jingle on transitions
 				if (lastWaveEvent != wave * 10 + ev) {

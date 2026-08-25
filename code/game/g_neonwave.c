@@ -94,6 +94,7 @@ static void NW_DailyInit( void ) {
 	nw_dailyActive = qfalse;
 	nw_dailyOffset = 0;
 	nw_dailyBossOffset = 0;
+	trap_Cvar_Set( "ui_neonwave_daily", "0" );
 
 	trap_Cvar_VariableStringBuffer( "g_neonwave_daily", buf, sizeof(buf) );
 	if ( atoi( buf ) != 1 ) {
@@ -114,6 +115,8 @@ static void NW_DailyInit( void ) {
 	nw_dailyActive = qtrue;
 	nw_dailyOffset = forced % 4;
 	nw_dailyBossOffset = ( forced / 4 ) % 4;
+	// mirror for the cgame HUD (DAILY badge on the wave title)
+	trap_Cvar_Set( "ui_neonwave_daily", "1" );
 }
 
 // daily records use their own file so normal bests stay untouched
