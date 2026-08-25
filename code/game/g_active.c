@@ -987,6 +987,14 @@ void ClientThink_real( gentity_t *ent ) {
 		client->ps.speed = client->ps.speed * 14 / 10;
 	}
 
+	// NeonWave boss attribute overlay: g_neonwave_bossattr
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& ( ent->r.svFlags & SVF_BOT )
+			&& ent->client->pers.neonwaveBoss
+			&& g_neonwave_bossattr.integer == 1 ) {
+		client->ps.speed = client->ps.speed * 13 / 10;
+	}
+
 	// NeonWave player speed upgrade: +5% per level (x10 fixed point)
 	if ( g_gametype.integer == GT_NEONWAVE
 			&& !( ent->r.svFlags & SVF_BOT )

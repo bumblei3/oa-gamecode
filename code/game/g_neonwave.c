@@ -62,6 +62,7 @@ static qboolean nw_waveHadBots;	// true once at least one bot connected this wav
 static qboolean nw_over;
 static int nw_event;
 static qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
+static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
 
 // forward declarations (records block is defined further down)
 static void NW_LoadRecords( void );
@@ -79,6 +80,7 @@ void NeonWave_Reset( void ) {
 	nw_breakEnd = 0;
 	nw_waveHadBots = qfalse;
 	nw_overVictory = qfalse;
+	nw_bossAttr = 0;
 	NW_LoadRecords();
 	nw_over = qfalse;
 	nw_event = 0;
