@@ -122,6 +122,7 @@ static void NW_DailyInit( void ) {
 // forward declarations (records block is defined further down)
 static void NW_LoadRecords( void );
 static void NW_MirrorRecordCvars( void );
+static void NW_LoadDailyRecords( void );
 
 void NeonWave_Reset( void ) {
 	nw_wave = 0;
@@ -138,6 +139,9 @@ void NeonWave_Reset( void ) {
 	nw_bossAttr = 0;
 	NW_DailyInit();
 	NW_LoadRecords();
+	if ( nw_dailyActive ) {
+		NW_LoadDailyRecords();
+	}
 	nw_over = qfalse;
 	nw_event = 0;
 	trap_Cvar_Set( "g_neonwave_upgradepoints", "0" );
@@ -375,11 +379,102 @@ static void NW_SaveRecords( void ) {
 		nw_records.bestKills, nw_records.bestCombo );
 }
 
+// ---- daily records (per-day bests, separate file, reset on day change) ----
+typedef struct {
+	int		dayStamp;	// yyyymmdd the records belong to
+	int		bestWave;
+	int		bestTime;	// fastest victory, seconds (0 = none)
+	int		bestKills;
+	int		bestCombo;
+} nwDailyRecords_t;
+
+static nwDailyRecords_t nw_dailyRecords;
+
+static int NW_DailyStamp( void ) {
+	qtime_t tm;
+	trap_RealTime( &tm );
+	return ( tm.tm_year + 1900 ) * 10000 + ( tm.tm_mon + 1 ) * 100 + tm.tm_mday;
+}
+
+static void NW_LoadDailyRecords( void ) {
+	fileHandle_t f;
+	nwDailyRecords_t saved;
+	memset( &nw_dailyRecords, 0, sizeof( nw_dailyRecords ) );
+	nw_dailyRecords.dayStamp = NW_DailyStamp();
+	if ( trap_FS_FOpenFile( NW_DAILY_RECORDS_FILE, &f, FS_READ ) >= 0 && f ) {
+		trap_FS_Read( &saved, sizeof( saved ), f );
+		if ( saved.dayStamp == nw_dailyRecords.dayStamp ) {
+			// same day: keep today's records
+			nw_dailyRecords = saved;
+		}
+		// different day: start fresh (struct already zeroed)
+		trap_FS_FCloseFile( f );
+	}
+	G_Printf( "NeonWave: DAILY records loaded wave=%i time=%is kills=%i combo=%i\n",
+		nw_dailyRecords.bestWave, nw_dailyRecords.bestTime,
+		nw_dailyRecords.bestKills, nw_dailyRecords.bestCombo );
+}
+
+static void NW_SaveDailyRecords( void ) {
+	fileHandle_t f;
+	int len = trap_FS_FOpenFile( NW_DAILY_RECORDS_FILE, &f, FS_WRITE );
+	if ( len < 0 || !f ) {
+		G_Printf( "NeonWave: WARNING cannot write " NW_DAILY_RECORDS_FILE "\n" );
+		return;
+	}
+	nw_dailyRecords.dayStamp = NW_DailyStamp();
+	trap_FS_Write( &nw_dailyRecords, sizeof( nw_dailyRecords ), f );
+	trap_FS_FCloseFile( f );
+	G_Printf( "NeonWave: DAILY RECORDS SAVED wave=%i time=%is kills=%i combo=%i\n",
+		nw_dailyRecords.bestWave, nw_dailyRecords.bestTime,
+		nw_dailyRecords.bestKills, nw_dailyRecords.bestCombo );
+}
+
+static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
+	qboolean changed = qfalse;
+
+	// day rolled over mid-session: reset and continue with a fresh set
+	if ( nw_dailyRecords.dayStamp != NW_DailyStamp() ) {
+		NW_LoadDailyRecords();
+	}
+
+	trap_Cvar_Set( "g_neonwave_newrecord", "0" );
+	if ( nw_wave > nw_dailyRecords.bestWave ) {
+		nw_dailyRecords.bestWave = nw_wave;
+		changed = qtrue;
+		G_Printf( "NeonWave: NEW DAILY RECORD WAVE %i\n", nw_wave );
+	}
+	if ( nw_overVictory && ( nw_dailyRecords.bestTime <= 0 || runSec < nw_dailyRecords.bestTime ) ) {
+		nw_dailyRecords.bestTime = runSec;
+		changed = qtrue;
+		G_Printf( "NeonWave: NEW DAILY RECORD TIME %is\n", runSec );
+	}
+	if ( kills > nw_dailyRecords.bestKills ) {
+		nw_dailyRecords.bestKills = kills;
+		changed = qtrue;
+		G_Printf( "NeonWave: NEW DAILY RECORD KILLS %i\n", kills );
+	}
+	if ( combo > nw_dailyRecords.bestCombo ) {
+		nw_dailyRecords.bestCombo = combo;
+		changed = qtrue;
+		G_Printf( "NeonWave: NEW DAILY RECORD COMBO %ix\n", combo );
+	}
+	if ( changed ) {
+		NW_SaveDailyRecords();
+		trap_Cvar_Set( "g_neonwave_newrecord", "1" );
+	}
+}
+
 static void NW_UpdateRecords( void ) {
 	int kills = NW_RunKills();
 	int combo = NW_RunBestCombo();
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
 	qboolean changed = qfalse;
+
+	// daily challenge: update the per-day record set instead of the global one
+	if ( nw_dailyActive ) {
+		NW_UpdateDailyRecords( kills, combo, runSec );
+	}
 
 	trap_Cvar_Set( "g_neonwave_newrecord", "0" ); // reset per run end
 	if ( nw_wave > nw_records.bestWave ) {
