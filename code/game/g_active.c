@@ -991,7 +991,7 @@ void ClientThink_real( gentity_t *ent ) {
 	if ( g_gametype.integer == GT_NEONWAVE
 			&& ( ent->r.svFlags & SVF_BOT )
 			&& ent->client->pers.neonwaveBoss
-			&& g_neonwave_bossattr.integer == 1 ) {
+			&& g_neonwaveBossAttr.integer == 1 ) {
 		client->ps.speed = client->ps.speed * 13 / 10;
 	}
 
