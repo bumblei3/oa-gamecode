@@ -394,6 +394,7 @@ struct gclient_s {
 #ifdef NEONARENA_MOD
 	int			nwLastKillTime;		// NeonWave combo: last drone kill time
 	int			nwCombo;			// NeonWave combo: current kill streak
+	int			nwDeaths;			// NeonWave dynamic difficulty: player deaths this run
 #endif
 
 	qboolean	fireHeld;			// used for hook
@@ -902,6 +903,7 @@ int  NeonWave_GetWave( void );
 void NeonWave_Frame( void );
 void NeonWave_DropReward( int clearedWave );
 void NeonWave_TrackRunCombo( int combo );
+void NeonWave_OnPlayerDeath( struct gclient_s *client );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
 void CheckTeamVote( int team );

@@ -524,6 +524,13 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		}
 		NeonWave_TrackRunCombo( attacker->client->nwCombo );
 	}
+	// NeonWave dynamic difficulty: human death counter
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& self->client
+			&& !( self->r.svFlags & SVF_BOT ) ) {
+		self->client->nwDeaths++;
+		NeonWave_OnPlayerDeath( self->client );
+	}
 #endif
 
 //unlagged - backward reconciliation #2

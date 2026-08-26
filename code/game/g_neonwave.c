@@ -35,6 +35,56 @@ static int nw_modifier = NW_MOD_NONE;
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
 static int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
+static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
+static const char *NW_DifficultyName( int d );
+static int NW_RunDeaths( void );
+
+// ---- dynamic difficulty (v0.16): scale challenge to player performance ----
+// deaths push down, clean streak waves push up. Applied as boss HP multiplier.
+static const char *NW_DifficultyName( int d ) {
+	switch ( d ) {
+	case 1:	return "HARD";
+	case -1:	return "EASY";
+	case -2:	return "RELAX";
+	default:	return "NORMAL";
+	}
+}
+
+// called on every human death; two quick deaths soften the run
+void NeonWave_OnPlayerDeath( struct gclient_s *client ) {
+	if ( g_gametype.integer != GT_NEONWAVE ) return;
+	if ( client->nwDeaths > 0 && client->nwDeaths % 2 == 0 && nw_difficulty > -2 ) {
+		nw_difficulty--;
+		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
+		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\\n\"", NW_DifficultyName( nw_difficulty ) ) );
+	}
+}
+
+// called at wave clear; a wave cleared without dying since last clear hardens
+static void NW_UpdateDifficultyOnClear( void ) {
+	static int lastSeenDeaths = -1;
+	int deathsNow = NW_RunDeaths();
+	if ( deathsNow == lastSeenDeaths && nw_difficulty < 1 ) {
+		// wave cleared without dying since the last clear -> harder
+		nw_difficulty++;
+		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
+		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\\n\"", NW_DifficultyName( nw_difficulty ) ) );
+	}
+	lastSeenDeaths = deathsNow;
+}
+
+// total human deaths this run
+static int NW_RunDeaths( void ) {
+	int i, deaths = 0;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		deaths += ent->client->nwDeaths;
+	}
+	return deaths;
+}
 
 // test helper: is g_neonwave_autokill active? (used by fakecombo hook)
 static qboolean autokillActive( void ) {
@@ -134,6 +184,16 @@ void NeonWave_Reset( void ) {
 	nw_modifier = NW_MOD_NONE;
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
+	nw_difficulty = 0;
+	// test hook: force difficulty tier (g_neonwave_diffforce N, -2..1)
+	{
+		char dfBuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_diffforce", dfBuf, sizeof(dfBuf) );
+		if ( dfBuf[0] ) {
+			nw_difficulty = atoi( dfBuf );
+			G_Printf( "NeonWave: dynamic difficulty forced -> %s\n", NW_DifficultyName( nw_difficulty ) );
+		}
+	}
 	nw_started = qfalse;
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
@@ -245,6 +305,10 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_WARDEN ) {
 		hc = 500; // 5x — warden: tanky teleporter
+	}
+	// dynamic difficulty (v0.16): scale boss HP with player performance
+	if ( nw_difficulty != 0 ) {
+		hc = hc * ( 100 + nw_difficulty * 15 ) / 100;
 	}
 	nw_bossType = type;
 	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
@@ -761,6 +825,7 @@ static void NW_EnterBreak( void ) {
 	}
 	NW_GrantUpgradePoints();
 	NeonWave_DropReward( nw_wave );
+	NW_UpdateDifficultyOnClear();
 	NW_SendStatus( NW_EV_CLEARED );
 	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\nF1 HP  F2 DMG  F3 SPEED\"", nw_wave ) );
 	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, NW_WAVE_BREAK );
