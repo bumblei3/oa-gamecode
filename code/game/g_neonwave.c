@@ -459,6 +459,8 @@ typedef struct {
 	int		bestTime;	// fastest victory, seconds (0 = none)
 	int		bestKills;
 	int		bestCombo;
+	int		dayResult;	// 0=no run yet today, 1=no victory today, 2=victory today
+	int		streak;		// consecutive daily victories (persists across days)
 } nwDailyRecords_t;
 
 static nwDailyRecords_t nw_dailyRecords;
@@ -477,10 +479,13 @@ static void NW_LoadDailyRecords( void ) {
 	if ( trap_FS_FOpenFile( NW_DAILY_RECORDS_FILE, &f, FS_READ ) >= 0 && f ) {
 		trap_FS_Read( &saved, sizeof( saved ), f );
 		if ( saved.dayStamp == nw_dailyRecords.dayStamp ) {
-			// same day: keep today's records
+			// same day: keep today's records (including today's streak/dayResult)
 			nw_dailyRecords = saved;
+		} else {
+			// different day: carry streak forward if yesterday was a victory
+			nw_dailyRecords.streak = ( saved.dayResult == 2 ) ? saved.streak : 0;
+			// dayResult stays 0 (today hasn't been played yet)
 		}
-		// different day: start fresh (struct already zeroed)
 		trap_FS_FCloseFile( f );
 	}
 	G_Printf( "NeonWave: DAILY records loaded wave=%i time=%is kills=%i combo=%i\n",
@@ -491,10 +496,11 @@ static void NW_LoadDailyRecords( void ) {
 
 // mirror daily record values to cvars (cgame reads them for the daily HUD)
 static void NW_MirrorDailyRecordCvars( void ) {
-	trap_Cvar_Set( "g_neonwave_dailyrecwave", va("%i", nw_dailyRecords.bestWave) );
-	trap_Cvar_Set( "g_neonwave_dailyrectime", va("%i", nw_dailyRecords.bestTime) );
-	trap_Cvar_Set( "g_neonwave_dailyreckills", va("%i", nw_dailyRecords.bestKills) );
-	trap_Cvar_Set( "g_neonwave_dailyreccombo", va("%i", nw_dailyRecords.bestCombo) );
+	trap_Cvar_Set( "g_neonwave_dailyrecwave", va( "%i", nw_dailyRecords.bestWave ) );
+	trap_Cvar_Set( "g_neonwave_dailyrectime", va( "%i", nw_dailyRecords.bestTime ) );
+	trap_Cvar_Set( "g_neonwave_dailyreckills", va( "%i", nw_dailyRecords.bestKills ) );
+	trap_Cvar_Set( "g_neonwave_dailyreccombo", va( "%i", nw_dailyRecords.bestCombo ) );
+	trap_Cvar_Set( "g_neonwave_dailystreak", va( "%i", nw_dailyRecords.streak ) );
 }
 
 static void NW_SaveDailyRecords( void ) {
@@ -514,10 +520,22 @@ static void NW_SaveDailyRecords( void ) {
 
 static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
 	qboolean changed = qfalse;
+	qboolean firstRunToday = qfalse;
 
-	// day rolled over mid-session: reset and continue with a fresh set
+	// day rolled over mid-session: reload (carries streak forward if yesterday was a victory)
 	if ( nw_dailyRecords.dayStamp != NW_DailyStamp() ) {
 		NW_LoadDailyRecords();
+	}
+	// first run of the day: determine streak outcome
+	if ( nw_dailyRecords.dayResult == 0 ) {
+		firstRunToday = qtrue;
+		if ( nw_overVictory ) {
+			nw_dailyRecords.dayResult = 2;
+			nw_dailyRecords.streak++;
+		} else {
+			nw_dailyRecords.dayResult = 1;
+			nw_dailyRecords.streak = 0;
+		}
 	}
 
 	trap_Cvar_Set( "g_neonwave_newrecord", "0" );
@@ -541,10 +559,9 @@ static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
 		changed = qtrue;
 		G_Printf( "NeonWave: NEW DAILY RECORD COMBO %ix\n", combo );
 	}
-	if ( changed ) {
-		NW_SaveDailyRecords();
-		trap_Cvar_Set( "g_neonwave_newrecord", "1" );
-	}
+	// always persist current daily state (records + streak + dayResult)
+	NW_SaveDailyRecords();
+	trap_Cvar_Set( "g_neonwave_newrecord", changed ? "1" : "0" );
 	NW_MirrorDailyRecordCvars();
 }
 

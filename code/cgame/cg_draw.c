@@ -1402,11 +1402,28 @@ static float CG_DrawNeonWave(float y) {
 		diw = atoi(dw); dit = atoi(dt); dik = atoi(dk); dic = atoi(dc);
 		if (diw > 0) {
 			vec4_t dcolor = {1.0f, 0.65f, 0.1f, 1.0f};
-			if (dit > 0) {
-				Com_sprintf(s, sizeof(s), "DAILY BEST %i  %i:%02i  %ik  x%i",
-					diw, dit / 60, dit % 60, dik, dic);
-			} else {
-				Com_sprintf(s, sizeof(s), "DAILY BEST %i  %ik  x%i", diw, dik, dic);
+			{
+				char dsBuf[8];
+				int ds;
+				dsBuf[0] = 0;
+				trap_Cvar_VariableStringBuffer( "g_neonwave_dailystreak", dsBuf, sizeof(dsBuf) );
+				ds = atoi(dsBuf);
+				if ( ds > 0 ) {
+					if (dit > 0) {
+						Com_sprintf(s, sizeof(s), "DAILY BEST %i  %i:%02i  %ik  x%i  STREAK x%i",
+							diw, dit / 60, dit % 60, dik, dic, ds);
+					} else {
+						Com_sprintf(s, sizeof(s), "DAILY BEST %i  %ik  x%i  STREAK x%i",
+							diw, dik, dic, ds);
+					}
+				} else {
+					if (dit > 0) {
+						Com_sprintf(s, sizeof(s), "DAILY BEST %i  %i:%02i  %ik  x%i",
+							diw, dit / 60, dit % 60, dik, dic);
+					} else {
+						Com_sprintf(s, sizeof(s), "DAILY BEST %i  %ik  x%i", diw, dik, dic);
+					}
+				}
 			}
 			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
 			CG_DrawSmallStringColor(320 - w/2, y, s, dcolor);
@@ -1551,11 +1568,28 @@ static float CG_DrawNeonWave(float y) {
 					diw = atoi(dw); dit = atoi(dt); dik = atoi(dk); dic = atoi(dc);
 					if (diw > 0) {
 						vec4_t dGold = {1.0f, 0.65f, 0.1f, 1.0f};
-						if (dit > 0) {
-							Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  TIME %i:%02i  KILLS %i  COMBO %ix",
-								diw, dit / 60, dit % 60, dik, dic);
-						} else {
-							Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  KILLS %i  COMBO %ix", diw, dik, dic);
+						{
+							char dsBuf[8];
+							int ds;
+							dsBuf[0] = 0;
+							trap_Cvar_VariableStringBuffer( "g_neonwave_dailystreak", dsBuf, sizeof(dsBuf) );
+							ds = atoi(dsBuf);
+							if ( ds > 0 ) {
+								if (dit > 0) {
+									Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  TIME %i:%02i  KILLS %i  COMBO %ix  STREAK x%i",
+										diw, dit / 60, dit % 60, dik, dic, ds);
+								} else {
+									Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  KILLS %i  COMBO %ix  STREAK x%i",
+										diw, dik, dic, ds);
+								}
+							} else {
+								if (dit > 0) {
+									Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  TIME %i:%02i  KILLS %i  COMBO %ix",
+										diw, dit / 60, dit % 60, dik, dic);
+								} else {
+									Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  KILLS %i  COMBO %ix", diw, dik, dic);
+								}
+							}
 						}
 						w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
 						CG_DrawSmallStringColor(320 - w/2, py, s, dGold);
