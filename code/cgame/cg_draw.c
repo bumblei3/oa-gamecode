@@ -1263,9 +1263,16 @@ static void CG_DrawNeonLook(void) {
 static float CG_DrawNeonWave(float y) {
 	char s[64];
 	int w, wave, ev, best;
+	qboolean daily = qfalse;
 	vec4_t color = {0.2f, 1.0f, 1.0f, 1.0f};
 	static int lastWaveEvent = -1;
 	static qboolean setCvar = qfalse;
+
+	{
+		char dbuf[8];
+		trap_Cvar_VariableStringBuffer("ui_neonwave_daily", dbuf, sizeof(dbuf));
+		daily = (atoi(dbuf) == 1);
+	}
 
 	trap_Cvar_VariableStringBuffer("ui_neonwave", s, sizeof(s));
 	if (!s[0]) {
@@ -1276,7 +1283,6 @@ static float CG_DrawNeonWave(float y) {
 				// daily mode badge: read server cvar mirror (set via configstring
 				// presence of the daily flag is not visible to cgame, so use the
 				// client-side cvar which the server sets on daily activation)
-				qboolean daily = qfalse;
 				{
 					char dbuf[8];
 					trap_Cvar_VariableStringBuffer("ui_neonwave_daily", dbuf, sizeof(dbuf));
@@ -1383,6 +1389,29 @@ static float CG_DrawNeonWave(float y) {
 		w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
 		CG_DrawSmallStringColor(320 - w/2, y, s, color);
 		y += SMALLCHAR_HEIGHT + 4;
+	}
+
+	// daily best line (daily mode only): today's per-day records
+	if (daily) {
+		char dw[8], dt[16], dk[8], dc[8];
+		int diw, dit, dik, dic;
+		trap_Cvar_VariableStringBuffer("g_neonwave_dailyrecwave", dw, sizeof(dw));
+		trap_Cvar_VariableStringBuffer("g_neonwave_dailyrectime", dt, sizeof(dt));
+		trap_Cvar_VariableStringBuffer("g_neonwave_dailyreckills", dk, sizeof(dk));
+		trap_Cvar_VariableStringBuffer("g_neonwave_dailyreccombo", dc, sizeof(dc));
+		diw = atoi(dw); dit = atoi(dt); dik = atoi(dk); dic = atoi(dc);
+		if (diw > 0) {
+			vec4_t dcolor = {1.0f, 0.65f, 0.1f, 1.0f};
+			if (dit > 0) {
+				Com_sprintf(s, sizeof(s), "DAILY BEST %i  %i:%02i  %ik  x%i",
+					diw, dit / 60, dit % 60, dik, dic);
+			} else {
+				Com_sprintf(s, sizeof(s), "DAILY BEST %i  %ik  x%i", diw, dik, dic);
+			}
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, dcolor);
+			y += SMALLCHAR_HEIGHT + 4;
+		}
 	}
 
 	// boss health bar (payload: "<wave> <ev> <bossHp> <bossMax>")
@@ -1506,10 +1535,32 @@ static float CG_DrawNeonWave(float y) {
 					vec4_t nrColor = {1.0f, 0.9f, 0.1f, 1.0f};
 					float pulse = 0.6f + 0.4f * (float)sin(cg.time / 120.0);
 					nrColor[3] = pulse;
-					Com_sprintf(s, sizeof(s), "** NEW RECORD **");
+					Com_sprintf(s, sizeof(s), daily ? "** NEW DAILY RECORD **" : "** NEW RECORD **");
 					w = CG_DrawStrlen(s) * BIGCHAR_WIDTH * 2;
 					CG_DrawBigStringColor(320 - w/2, py + 4, s, nrColor);
 					py += BIGCHAR_HEIGHT + 10;
+				}
+				// daily challenge: show today's per-day records instead of/next to all-time
+				if (daily) {
+					char dw[8], dt[16], dk[8], dc[8];
+					int diw, dit, dik, dic;
+					trap_Cvar_VariableStringBuffer("g_neonwave_dailyrecwave", dw, sizeof(dw));
+					trap_Cvar_VariableStringBuffer("g_neonwave_dailyrectime", dt, sizeof(dt));
+					trap_Cvar_VariableStringBuffer("g_neonwave_dailyreckills", dk, sizeof(dk));
+					trap_Cvar_VariableStringBuffer("g_neonwave_dailyreccombo", dc, sizeof(dc));
+					diw = atoi(dw); dit = atoi(dt); dik = atoi(dk); dic = atoi(dc);
+					if (diw > 0) {
+						vec4_t dGold = {1.0f, 0.65f, 0.1f, 1.0f};
+						if (dit > 0) {
+							Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  TIME %i:%02i  KILLS %i  COMBO %ix",
+								diw, dit / 60, dit % 60, dik, dic);
+						} else {
+							Com_sprintf(s, sizeof(s), "TODAY: WAVE %i  KILLS %i  COMBO %ix", diw, dik, dic);
+						}
+						w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+						CG_DrawSmallStringColor(320 - w/2, py, s, dGold);
+						py += SMALLCHAR_HEIGHT + 6;
+					}
 				}
 			}
 

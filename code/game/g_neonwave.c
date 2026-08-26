@@ -126,6 +126,7 @@ static void NW_DailyInit( void ) {
 static void NW_LoadRecords( void );
 static void NW_MirrorRecordCvars( void );
 static void NW_LoadDailyRecords( void );
+static void NW_MirrorDailyRecordCvars( void );
 
 void NeonWave_Reset( void ) {
 	nw_wave = 0;
@@ -421,6 +422,15 @@ static void NW_LoadDailyRecords( void ) {
 	G_Printf( "NeonWave: DAILY records loaded wave=%i time=%is kills=%i combo=%i\n",
 		nw_dailyRecords.bestWave, nw_dailyRecords.bestTime,
 		nw_dailyRecords.bestKills, nw_dailyRecords.bestCombo );
+	NW_MirrorDailyRecordCvars();
+}
+
+// mirror daily record values to cvars (cgame reads them for the daily HUD)
+static void NW_MirrorDailyRecordCvars( void ) {
+	trap_Cvar_Set( "g_neonwave_dailyrecwave", va("%i", nw_dailyRecords.bestWave) );
+	trap_Cvar_Set( "g_neonwave_dailyrectime", va("%i", nw_dailyRecords.bestTime) );
+	trap_Cvar_Set( "g_neonwave_dailyreckills", va("%i", nw_dailyRecords.bestKills) );
+	trap_Cvar_Set( "g_neonwave_dailyreccombo", va("%i", nw_dailyRecords.bestCombo) );
 }
 
 static void NW_SaveDailyRecords( void ) {
@@ -471,6 +481,7 @@ static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
 		NW_SaveDailyRecords();
 		trap_Cvar_Set( "g_neonwave_newrecord", "1" );
 	}
+	NW_MirrorDailyRecordCvars();
 }
 
 static void NW_UpdateRecords( void ) {
