@@ -662,6 +662,14 @@ void NeonWave_DropReward( int clearedWave ) {
 	}
 }
 
+static void NeonWave_LogPayload( void ) {
+// explizites Loggen der CS_NEONWAVE-Payload für strukturiertes Parsen in Tests
+// Format: <wave> <event> <bossHp> <bossMax> <breakMs> <pts> <best> <mod> <kills> <bestCombo> <runSec> <liveCombo>
+char buf[256];
+trap_GetConfigstring( CS_NEONWAVE, buf, sizeof(buf) );
+G_Printf( "NEONWAVE_PAYLOAD: %s\n", buf );
+}
+
 static void NeonWave_UpdateHighscore( void ) {
 	int best = NW_Best();
 	if ( nw_wave > best ) {
@@ -844,7 +852,8 @@ static void NW_EnterBreak( void ) {
 	NeonWave_DropReward( nw_wave );
 	NW_UpdateDifficultyOnClear();
 	NW_SendStatus( NW_EV_CLEARED );
-	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\nF1 HP  F2 DMG  F3 SPEED\"", nw_wave ) );
+	NeonWave_LogPayload();
+	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\\nF1 HP  F2 DMG  F3 SPEED\"", nw_wave ) );
 	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, NW_WAVE_BREAK );
 }
 
