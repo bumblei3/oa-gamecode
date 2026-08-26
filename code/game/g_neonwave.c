@@ -884,6 +884,7 @@ static void NW_GameOver( int event, const char *why ) {
 		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000 );
 	NW_KickBots();
 	G_Printf( "NeonWave: %s (wave %i)\n", why, nw_wave );
+	NeonWave_LogPayload();
 	LogExit( why );
 }
 
