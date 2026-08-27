@@ -1290,13 +1290,14 @@ static float CG_DrawNeonWave(float y) {
 				}
 				Com_sprintf(s, sizeof(s), daily ? "DAILY WAVE %i%s" : "WAVE %i%s", wave,
 					ev == 1 ? " CLEARED" : "");
-				// jingle on transitions
-				if (lastWaveEvent != wave * 10 + ev) {
-					if (!setCvar) setCvar = qtrue;
-					lastWaveEvent = wave * 10 + ev;
-					if (ev == 1) trap_S_StartLocalSound(cgs.media.count3Sound, CHAN_ANNOUNCER);
-					else trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
-				}
+					// jingle on transitions
+					if (lastWaveEvent != wave * 10 + ev) {
+						if (!setCvar) setCvar = qtrue;
+						lastWaveEvent = wave * 10 + ev;
+						if (ev == 1) trap_S_StartLocalSound(cgs.media.count3Sound, CHAN_ANNOUNCER);
+						else if (ev == 0) trap_S_StartLocalSound(cgs.media.neonWaveStartSound, CHAN_ANNOUNCER);
+						else trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
+					}
 			}
 		}
 	}
@@ -1484,7 +1485,41 @@ static float CG_DrawNeonWave(float y) {
 		}
 	}
 
-	// run-end stats overlay: "<wave> <ev> ... <mod> <kills> <bestcombo> <runsec>"
+		// wave progress: horizontal bar showing wave X of maxWave (or 20 default)
+		{
+			const char *cs = CG_ConfigString(CS_NEONWAVE);
+			int wave, ev, maxWave;
+			char mwBuf[8];
+			int barW, barH, fill, bx;
+			vec4_t barBg, barFill, barEdge;
+			wave = ev = 0;
+			if (cs && cs[0] && sscanf(cs, "%i %i", &wave, &ev) == 2 && wave > 0) {
+				// determine max target wave (endless mode: g_neonwave_maxwave 0 = unlimited → use actual max)
+				trap_Cvar_VariableStringBuffer("g_neonwave_maxwave", mwBuf, sizeof(mwBuf));
+				maxWave = atoi(mwBuf);
+				if (maxWave <= 0) maxWave = 20;
+				barW = 300; barH = 8;
+				fill = wave * (barW - 4) / maxWave;
+				bx = 320 - barW / 2;
+				barBg[0] = 0.05f; barBg[1] = 0.05f; barBg[2] = 0.1f; barBg[3] = 0.5f;
+				barFill[0] = 0.2f; barFill[1] = 1.0f; barFill[2] = 1.0f; barFill[3] = 1.0f;
+				barEdge[0] = 0.5f; barEdge[1] = 1.0f; barEdge[2] = 1.0f; barEdge[3] = 0.3f;
+				// background
+				CG_FillRect(bx - 2, 468 - barH/2 - 2, barW + 4, barH + 4, barEdge);
+				CG_FillRect(bx, 468 - barH/2, barW, barH, barBg);
+				// fill
+				CG_FillRect(bx + 2, 468 - barH/2 + 2, fill, barH - 4, barFill);
+				if (cgs.media.neonBarShader) {
+					CG_DrawPic(bx - 4, 468 - barH/2 - 4, barW + 8, barH + 8, cgs.media.neonBarShader);
+				}
+				// wave label
+				Com_sprintf(s, sizeof(s), "WAVE %i / %i", wave, maxWave);
+				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(320 - w/2, 468 - SMALLCHAR_HEIGHT, s, barFill);
+			}
+		}
+
+		// run-end stats overlay: "<wave> <ev> ... <mod> <kills> <bestcombo> <runsec>"
 	if (ev == 2 || ev == 3) {
 		const char *cs = CG_ConfigString(CS_NEONWAVE);
 		int kills = 0, combo = 0, runsec = 0;

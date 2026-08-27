@@ -1260,9 +1260,10 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.neonBarShader = trap_R_RegisterShader("gfx/2d/neon_bar");
 	cgs.media.neonModifierEdgeShader = trap_R_RegisterShader("neonarena/modifierEdgeGlow");
 	cgs.media.neonComboChestShader = trap_R_RegisterShader("gfx/2d/comboChestPulse");
+	cgs.media.neonWaveStartSound = trap_S_RegisterSound("sound/neonwave_start.wav", qfalse);
 	cgs.media.neonRailImpactShader = trap_R_RegisterShader("railImpactGlow");
 	cgs.media.neonLgSparkShader = trap_R_RegisterShader("lgSparkBurst");
-#endif
+#endif // NEONARENA_MOD
 
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
 	cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
