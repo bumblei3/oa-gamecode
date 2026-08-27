@@ -26,6 +26,7 @@
 #define NW_MOD_SWARM		2	// double drone count, skill capped lower
 #define NW_MOD_LOWGRAV		3	// g_gravity halved for the wave
 #define NW_MOD_DOUBLEPTS	4	// wave clear grants x2 upgrade points
+#define NW_MOD_TIMEWARP		5	// player speed scaled (g_speed) for the wave
 
 static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
@@ -679,7 +680,7 @@ static void NeonWave_UpdateHighscore( void ) {
 }
 
 static void NW_PickModifier( int num ) {
-	static const int pool[4] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS };
+	static const int pool[5] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP };
 	int idx;
 	char mbBuf[8];
 
@@ -687,17 +688,17 @@ static void NW_PickModifier( int num ) {
 	if ( num < 5 || num >= NW_BOSS_WAVE || num == NW_MAX_WAVE ) {
 		return;
 	}
-	// test hook: g_neonwave_modifier N forces modifier 1-4
+	// test hook: g_neonwave_modifier N forces modifier 1-5
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_DOUBLEPTS ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_TIMEWARP ) {
 		nw_modifier = atoi( mbBuf );
 		return;
 	}
 	// daily challenge: derive the modifier rotation offset from the date seed
 	if ( nw_dailyActive ) {
-		idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 4;
+		idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 5;
 	} else {
-		idx = ( num / 2 + num % 3 ) % 4;
+		idx = ( num / 2 + num % 3 ) % 5;
 	}
 	nw_modifier = pool[idx];
 }
@@ -708,6 +709,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_SWARM:		return "SWARM";
 	case NW_MOD_LOWGRAV:	return "LOW GRAVITY";
 	case NW_MOD_DOUBLEPTS:	return "DOUBLE POINTS";
+	case NW_MOD_TIMEWARP:	return "TIME WARP";
 	default:				return "";
 	}
 }
@@ -744,6 +746,12 @@ void NeonWave_StartWave( int num ) {
 		trap_Cvar_Set( "g_gravity", "400" ); // half of default 800
 	} else {
 		trap_Cvar_Set( "g_gravity", "800" );
+	}
+	// TIME WARP: scale player movement speed for the wave (engine g_speed cvar)
+	if ( nw_modifier == NW_MOD_TIMEWARP ) {
+		trap_Cvar_Set( "g_speed", "520" ); // ~1.6x of default 320
+	} else {
+		trap_Cvar_Set( "g_speed", "320" );
 	}
 	if ( nw_modifier == NW_MOD_GLASS && skill < 4 ) {
 		skill += 1; // glass drones are fast/aggressive
