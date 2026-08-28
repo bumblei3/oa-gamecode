@@ -28,6 +28,8 @@
 #define NW_MOD_DOUBLEPTS	4	// wave clear grants x2 upgrade points
 #define NW_MOD_TIMEWARP		5	// player speed scaled (g_speed) for the wave
 #define NW_MOD_VAMPIRE		6	// each kill heals the player a few HP (lifesteal)
+#define NW_MOD_FRENZY		7	// g_quadfactor boosted -> shots hit much harder
+#define NW_MOD_OVERSHIELD	8	// player granted bonus armor at wave start
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -715,25 +717,25 @@ static void NeonWave_UpdateHighscore( void ) {
 }
 
 static void NW_PickModifier( int num ) {
-	static const int pool[6] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP, NW_MOD_VAMPIRE };
+	static const int pool[8] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD };
 	int idx;
 	char mbBuf[8];
 
 	nw_modifier = NW_MOD_NONE;
 	if ( num < 5 || num >= NW_BOSS_WAVE || num == NW_MAX_WAVE ) {
-		return;
+	return;
 	}
-	// test hook: g_neonwave_modifier N forces modifier 1-6
+	// test hook: g_neonwave_modifier N forces modifier 1-8
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_VAMPIRE ) {
-		nw_modifier = atoi( mbBuf );
-		return;
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_OVERSHIELD ) {
+	nw_modifier = atoi( mbBuf );
+	return;
 	}
 	// daily challenge: derive the modifier rotation offset from the date seed
 	if ( nw_dailyActive ) {
-		idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 5;
+	idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 5;
 	} else {
-		idx = ( num / 2 + num % 3 ) % 5;
+	idx = ( num / 2 + num % 3 ) % 5;
 	}
 	nw_modifier = pool[idx];
 }
@@ -746,6 +748,8 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_DOUBLEPTS:	return "DOUBLE POINTS";
 	case NW_MOD_TIMEWARP:	return "TIME WARP";
 	case NW_MOD_VAMPIRE:	return "VAMPIRE";
+	case NW_MOD_FRENZY:	return "FRENZY";
+	case NW_MOD_OVERSHIELD:	return "OVERSHIELD";
 	default:				return "";
 	}
 }
@@ -787,21 +791,41 @@ void NeonWave_StartWave( int num ) {
 
 	// apply modifier side effects
 	if ( nw_modifier == NW_MOD_LOWGRAV ) {
-		trap_Cvar_Set( "g_gravity", "400" ); // half of default 800
+	trap_Cvar_Set( "g_gravity", "400" ); // half of default 800
 	} else {
-		trap_Cvar_Set( "g_gravity", "800" );
+	trap_Cvar_Set( "g_gravity", "800" );
 	}
 	// TIME WARP: scale player movement speed for the wave (engine g_speed cvar)
 	if ( nw_modifier == NW_MOD_TIMEWARP ) {
-		trap_Cvar_Set( "g_speed", "520" ); // ~1.6x of default 320
+	trap_Cvar_Set( "g_speed", "520" ); // ~1.6x of default 320
 	} else {
-		trap_Cvar_Set( "g_speed", "320" );
+	trap_Cvar_Set( "g_speed", "320" );
+	}
+	// FRENZY: boost damage dealt (g_quadfactor raises the Quad-style multiplier)
+	if ( nw_modifier == NW_MOD_FRENZY ) {
+	trap_Cvar_Set( "g_quadfactor", "4" ); // default 3 -> harder hits
+	G_Printf( "NeonWave: FRENZY quadfactor set to 4\n" );
+	} else {
+	trap_Cvar_Set( "g_quadfactor", "3" );
+	}
+	// OVERSHIELD: grant bonus armor at the start of each wave (survivability)
+	if ( nw_modifier == NW_MOD_OVERSHIELD ) {
+	int k;
+	for ( k = 0; k < level.maxclients; k++ ) {
+	gentity_t *p = &g_entities[k];
+	if ( !p->inuse || !p->client ) continue;
+	if ( p->client->pers.connected != CON_CONNECTED ) continue;
+	if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+	if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+	p->client->ps.stats[STAT_ARMOR] += 50;
+	}
+	G_Printf( "NeonWave: OVERSHIELD +50 armor granted\n" );
 	}
 	if ( nw_modifier == NW_MOD_GLASS && skill < 4 ) {
-		skill += 1; // glass drones are fast/aggressive
+	skill += 1; // glass drones are fast/aggressive
 	}
 	if ( nw_modifier == NW_MOD_SWARM ) {
-		botCount *= 2;
+	botCount *= 2;
 	}
 
 	NW_SendStatus( NW_EV_RUNNING );
