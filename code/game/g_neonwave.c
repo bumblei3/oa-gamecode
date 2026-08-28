@@ -37,6 +37,7 @@ static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
 static int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
+static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
 
@@ -186,6 +187,7 @@ void NeonWave_Reset( void ) {
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
 	nw_difficulty = 0;
+	nw_modifiersSeen = 0;
 	// test hook: force difficulty tier (g_neonwave_diffforce N, -2..1)
 	{
 		char dfBuf[8];
@@ -722,6 +724,9 @@ void NeonWave_StartWave( int num ) {
 	int maxWave;
 
 	NW_PickModifier( num );
+	if ( nw_modifier != NW_MOD_NONE ) {
+		nw_modifiersSeen |= ( 1 << nw_modifier );
+	}
 	if ( skill > 5 ) skill = 5;
 	nw_wave = num;
 	nw_botCounter = 0;
@@ -876,6 +881,60 @@ static void NW_KickBots( void ) {
 	}
 }
 
+// ---- run-stats JSON export (local dashboard data source) ----
+#define NW_RUNSTATS_FILE "neonwave_runstats.json"
+
+// Emit a machine-readable run summary at game over. Mirrors the public fields
+// of the run (waves, kills, combo, time, accuracy, modifiers seen, difficulty)
+// so a player-side dashboard can parse one stable file instead of scraping logs.
+static void NW_WriteRunStats( int event ) {
+	fileHandle_t f;
+	int len;
+	int kills = NW_RunKills();
+	int bestCombo = NW_RunBestCombo();
+	int runSec = ( level.time - nw_runStartTime ) / 1000;
+	int i, modCount = 0, first = qtrue;
+	char buf[1024];
+	char mods[256];
+	const char *modNames[6] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
+	                           "DOUBLE POINTS", "TIME WARP" };
+
+	mods[0] = '\0';
+	for ( i = 1; i <= 5; i++ ) {
+		if ( nw_modifiersSeen & ( 1 << i ) ) {
+			modCount++;
+			Com_sprintf( mods + strlen( mods ), sizeof(mods) - strlen( mods ),
+				"%s\"%s\"", first ? "" : ", ", modNames[i] );
+			first = qfalse;
+		}
+	}
+
+	Com_sprintf( buf, sizeof(buf),
+		"{\n"
+		"  \"version\": 1,\n"
+		"  \"result\": \"%s\",\n"
+		"  \"wave\": %i,\n"
+		"  \"kills\": %i,\n"
+		"  \"bestCombo\": %i,\n"
+		"  \"timeSec\": %i,\n"
+		"  \"difficulty\": \"%s\",\n"
+		"  \"modifiersSeen\": %i,\n"
+		"  \"modifierNames\": [%s]\n"
+		"}\n",
+		( event == NW_EV_VICTORY ) ? "VICTORY" : "FAILED",
+		nw_wave, kills, bestCombo, runSec,
+		NW_DifficultyName( nw_difficulty ), modCount, mods );
+
+	len = trap_FS_FOpenFile( NW_RUNSTATS_FILE, &f, FS_WRITE );
+	if ( len < 0 || !f ) {
+		G_Printf( "NeonWave: WARNING cannot write " NW_RUNSTATS_FILE "\n" );
+		return;
+	}
+	trap_FS_Write( buf, strlen( buf ), f );
+	trap_FS_FCloseFile( f );
+	G_Printf( "NeonWave: RUN STATS JSON written (%s)\n", NW_RUNSTATS_FILE );
+}
+
 static void NW_GameOver( int event, const char *why ) {
 	if ( nw_over ) {
 		return;
@@ -892,6 +951,7 @@ static void NW_GameOver( int event, const char *why ) {
 		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000 );
 	NW_KickBots();
 	G_Printf( "NeonWave: %s (wave %i)\n", why, nw_wave );
+	NW_WriteRunStats( event );
 	NeonWave_LogPayload();
 	LogExit( why );
 }
