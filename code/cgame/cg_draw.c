@@ -1295,7 +1295,20 @@ static float CG_DrawNeonWave(float y) {
 						if (!setCvar) setCvar = qtrue;
 						lastWaveEvent = wave * 10 + ev;
 						if (ev == 1) trap_S_StartLocalSound(cgs.media.count3Sound, CHAN_ANNOUNCER);
-						else if (ev == 0) trap_S_StartLocalSound(cgs.media.neonWaveStartSound, CHAN_ANNOUNCER);
+						else if (ev == 0) {
+							trap_S_StartLocalSound(cgs.media.neonWaveStartSound, CHAN_ANNOUNCER);
+							// background music: (re)start the neon loop on each wave
+							// start; Q3 local sounds are one-shot, so re-trigger keeps
+							// it continuous across the short loop. Cvar-gated so it can
+							// be disabled (g_neonwave_music 0) and is a no-op headless.
+							{
+								char mbBuf[8];
+								trap_Cvar_VariableStringBuffer("g_neonwave_music", mbBuf, sizeof(mbBuf));
+								if (atoi(mbBuf) != 0) {
+									trap_S_StartLocalSound(cgs.media.neonMusicSound, CHAN_ANNOUNCER);
+								}
+							}
+						}
 						else trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
 					}
 			}
