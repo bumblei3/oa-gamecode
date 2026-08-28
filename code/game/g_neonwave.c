@@ -27,6 +27,7 @@
 #define NW_MOD_LOWGRAV		3	// g_gravity halved for the wave
 #define NW_MOD_DOUBLEPTS	4	// wave clear grants x2 upgrade points
 #define NW_MOD_TIMEWARP		5	// player speed scaled (g_speed) for the wave
+#define NW_MOD_VAMPIRE		6	// each kill heals the player a few HP (lifesteal)
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -714,7 +715,7 @@ static void NeonWave_UpdateHighscore( void ) {
 }
 
 static void NW_PickModifier( int num ) {
-	static const int pool[5] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP };
+	static const int pool[6] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP, NW_MOD_VAMPIRE };
 	int idx;
 	char mbBuf[8];
 
@@ -722,9 +723,9 @@ static void NW_PickModifier( int num ) {
 	if ( num < 5 || num >= NW_BOSS_WAVE || num == NW_MAX_WAVE ) {
 		return;
 	}
-	// test hook: g_neonwave_modifier N forces modifier 1-5
+	// test hook: g_neonwave_modifier N forces modifier 1-6
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_TIMEWARP ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_VAMPIRE ) {
 		nw_modifier = atoi( mbBuf );
 		return;
 	}
@@ -744,6 +745,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_LOWGRAV:	return "LOW GRAVITY";
 	case NW_MOD_DOUBLEPTS:	return "DOUBLE POINTS";
 	case NW_MOD_TIMEWARP:	return "TIME WARP";
+	case NW_MOD_VAMPIRE:	return "VAMPIRE";
 	default:				return "";
 	}
 }
@@ -1259,6 +1261,34 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 	}
 }
 
+// VAMPIRE modifier helpers: return the client that should receive lifesteal,
+// and apply a small heal capped at max health (used on each drone kill).
+static gentity_t *NW_VampireHealTarget( void ) {
+	int i;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+		// in headless tests a bot may act as the player (botasplayer 1)
+		if ( ( ent->r.svFlags & SVF_BOT ) && !NW_TestPlayerSkipBots() ) continue;
+		return ent;
+	}
+	return NULL;
+}
+
+static void NW_VampireHeal( gentity_t *t ) {
+	#define NW_VAMPIRE_HEAL 4
+	int nh = t->client->ps.stats[STAT_HEALTH] + NW_VAMPIRE_HEAL;
+	if ( nh > t->client->ps.stats[STAT_MAX_HEALTH] )
+		nh = t->client->ps.stats[STAT_MAX_HEALTH];
+	t->client->ps.stats[STAT_HEALTH] = nh;
+	t->health = nh;
+	G_Printf( "NeonWave: VAMPIRE lifesteal +%i (hp %i)\n", NW_VAMPIRE_HEAL, nh );
+	#undef NW_VAMPIRE_HEAL
+}
+
 void NeonWave_Frame( void ) {
 	int humans, bots, i;
 	gentity_t *ent;
@@ -1344,6 +1374,7 @@ void NeonWave_Frame( void ) {
 			char akBuf[8];
 			trap_Cvar_VariableStringBuffer( "g_neonwave_autokill", akBuf, sizeof(akBuf) );
 			if ( atoi( akBuf ) == 1 ) {
+				gentity_t *heal = NULL;
 				for ( i = 0; i < level.maxclients; i++ ) {
 					ent = &g_entities[i];
 					if ( !ent->inuse || !ent->client ) continue;
@@ -1351,6 +1382,10 @@ void NeonWave_Frame( void ) {
 					if ( ent->health <= 0 ) continue;
 					ent->health = 0;
 					ent->client->ps.stats[STAT_HEALTH] = 0;
+					if ( nw_modifier == NW_MOD_VAMPIRE ) {
+						if ( !heal ) heal = NW_VampireHealTarget();
+						if ( heal ) NW_VampireHeal( heal );
+					}
 				}
 			}
 		}
