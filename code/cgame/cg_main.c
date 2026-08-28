@@ -2542,6 +2542,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 	// end loadingscreen
 #ifdef NEONARENA_MOD
 	trap_SendConsoleCommand("exec neon-look.cfg\n");
+	trap_SendConsoleCommand("exec neon-gfx.cfg\n");
 #endif
 }
 
