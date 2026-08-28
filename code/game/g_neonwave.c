@@ -21,12 +21,20 @@
 #define NW_EV_VICTORY		3
 
 // wave modifiers (from wave 5, one per wave, boss waves excluded)
-#define NW_MOD_NONE			0
+#define NW_MOD_NONE		0
 #define NW_MOD_GLASS		1	// all drones die to one hit, but +2 skill aggression
 #define NW_MOD_SWARM		2	// double drone count, skill capped lower
 #define NW_MOD_LOWGRAV		3	// g_gravity halved for the wave
 #define NW_MOD_DOUBLEPTS	4	// wave clear grants x2 upgrade points
 #define NW_MOD_TIMEWARP		5	// player speed scaled (g_speed) for the wave
+
+// achievements (per-run badges, mirrored into run-stats JSON)
+#define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
+#define NW_ACH_SURVIVOR		1	// reached wave 15
+#define NW_ACH_SHARPSHOOTER	2	// best combo >= 8
+#define NW_ACH_STREAKER		3	// best combo >= 5
+#define NW_ACH_FLAWLESS		4	// victory with 0 deaths
+#define NW_ACH_COUNT		5
 
 static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
@@ -38,6 +46,7 @@ static int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
+static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
 
@@ -188,6 +197,12 @@ void NeonWave_Reset( void ) {
 	nw_runBestCombo = 0;
 	nw_difficulty = 0;
 	nw_modifiersSeen = 0;
+	{
+		int ai;
+		for ( ai = 0; ai < NW_ACH_COUNT; ai++ ) {
+			nw_achievements[ai] = qfalse;
+		}
+	}
 	// test hook: force difficulty tier (g_neonwave_diffforce N, -2..1)
 	{
 		char dfBuf[8];
@@ -881,6 +896,58 @@ static void NW_KickBots( void ) {
 	}
 }
 
+// ---- achievements (persistent badges, exposed in run-stats JSON) ----
+// Unlocked per-run criteria, mirrored into neonwave_runstats.json (achievements[])
+// so a player-side dashboard can show long-term goals beyond the highscore.
+static const char *NW_AchievementName( int id ) {
+	switch ( id ) {
+	case NW_ACH_FIRST_VICTORY: return "FIRST VICTORY";
+	case NW_ACH_SURVIVOR:      return "SURVIVOR";
+	case NW_ACH_SHARPSHOOTER:  return "SHARPSHOOTER";
+	case NW_ACH_STREAKER:      return "STREAKER";
+	case NW_ACH_FLAWLESS:      return "FLAWLESS";
+	default:                   return "";
+	}
+}
+
+// Evaluate per-run achievements and store into the run-bitmask nw_achievements[].
+static void NW_CheckAchievements( int event ) {
+	int combo = NW_RunBestCombo();
+	int deaths = NW_RunDeaths();
+	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
+	int i;
+
+	// reset (defensive; NeonWave_Reset already clears)
+	{
+		int ai;
+		for ( ai = 0; ai < NW_ACH_COUNT; ai++ ) {
+			nw_achievements[ai] = qfalse;
+		}
+	}
+	if ( victory ) {
+		nw_achievements[ NW_ACH_FIRST_VICTORY ] = qtrue;
+	}
+	if ( nw_wave >= 15 ) {
+		nw_achievements[ NW_ACH_SURVIVOR ] = qtrue;
+	}
+	if ( combo >= 5 ) {
+		nw_achievements[ NW_ACH_STREAKER ] = qtrue;
+	}
+	if ( combo >= 8 ) {
+		nw_achievements[ NW_ACH_SHARPSHOOTER ] = qtrue;
+	}
+	if ( victory && deaths == 0 ) {
+		nw_achievements[ NW_ACH_FLAWLESS ] = qtrue;
+	}
+	// emit log markers so headless CI can assert achievements deterministically
+	// (the run-stats json may be overwritten by the dedi server's map restart)
+	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
+		if ( nw_achievements[i] ) {
+			G_Printf( "NeonWave: ACHIEVEMENT %s\n", NW_AchievementName( i ) );
+		}
+	}
+}
+
 // ---- run-stats JSON export (local dashboard data source) ----
 #define NW_RUNSTATS_FILE "neonwave_runstats.json"
 
@@ -893,11 +960,14 @@ static void NW_WriteRunStats( int event ) {
 	int kills = NW_RunKills();
 	int bestCombo = NW_RunBestCombo();
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
-	int i, modCount = 0, first = qtrue;
+	int i, modCount = 0, first = qtrue, achCount = 0;
 	char buf[1024];
 	char mods[256];
+	char achs[256];
 	const char *modNames[6] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
 	                           "DOUBLE POINTS", "TIME WARP" };
+
+	NW_CheckAchievements( event );
 
 	mods[0] = '\0';
 	for ( i = 1; i <= 5; i++ ) {
@@ -906,6 +976,15 @@ static void NW_WriteRunStats( int event ) {
 			Com_sprintf( mods + strlen( mods ), sizeof(mods) - strlen( mods ),
 				"%s\"%s\"", first ? "" : ", ", modNames[i] );
 			first = qfalse;
+		}
+	}
+
+	achs[0] = '\0';
+	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
+		if ( nw_achievements[i] ) {
+			achCount++;
+			Com_sprintf( achs + strlen( achs ), sizeof(achs) - strlen( achs ),
+				"%s\"%s\"", achCount > 1 ? ", " : "", NW_AchievementName( i ) );
 		}
 	}
 
@@ -919,11 +998,12 @@ static void NW_WriteRunStats( int event ) {
 		"  \"timeSec\": %i,\n"
 		"  \"difficulty\": \"%s\",\n"
 		"  \"modifiersSeen\": %i,\n"
-		"  \"modifierNames\": [%s]\n"
+		"  \"modifierNames\": [%s],\n"
+		"  \"achievements\": [%s]\n"
 		"}\n",
 		( event == NW_EV_VICTORY ) ? "VICTORY" : "FAILED",
 		nw_wave, kills, bestCombo, runSec,
-		NW_DifficultyName( nw_difficulty ), modCount, mods );
+		NW_DifficultyName( nw_difficulty ), modCount, mods, achs );
 
 	len = trap_FS_FOpenFile( NW_RUNSTATS_FILE, &f, FS_WRITE );
 	if ( len < 0 || !f ) {
