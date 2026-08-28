@@ -47,6 +47,7 @@ static int nw_runBestCombo;		// run stats: best streak this run (survives bot di
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
 static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
+static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
 
@@ -221,6 +222,7 @@ void NeonWave_Reset( void ) {
 	nw_bossAttr = 0;
 	NW_DailyInit();
 	NW_LoadRecords();
+	NW_LoadAchievements();
 	if ( nw_dailyActive ) {
 		NW_LoadDailyRecords();
 	}
@@ -897,8 +899,9 @@ static void NW_KickBots( void ) {
 }
 
 // ---- achievements (persistent badges, exposed in run-stats JSON) ----
-// Unlocked per-run criteria, mirrored into neonwave_runstats.json (achievements[])
-// so a player-side dashboard can show long-term goals beyond the highscore.
+// Per-run badges are computed at game over and mirrored into the run-stats JSON
+// (achievements[]). Unlocked-ever state is persisted to neonwave_achievements.dat
+// so a player-side dashboard can show lifetime progress (X/5 unlocked).
 static const char *NW_AchievementName( int id ) {
 	switch ( id ) {
 	case NW_ACH_FIRST_VICTORY: return "FIRST VICTORY";
@@ -910,14 +913,46 @@ static const char *NW_AchievementName( int id ) {
 	}
 }
 
-// Evaluate per-run achievements and store into the run-bitmask nw_achievements[].
+#define NW_ACHIEVEMENTS_FILE	"neonwave_achievements.dat"
+static qboolean nw_achEver[ NW_ACH_COUNT ]; // unlocked at least once (lifetime)
+
+static void NW_LoadAchievements( void ) {
+	fileHandle_t f;
+	int i;
+	memset( nw_achEver, 0, sizeof( nw_achEver ) );
+	if ( trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_READ ) >= 0 && f ) {
+		trap_FS_Read( nw_achEver, sizeof( nw_achEver ), f );
+		trap_FS_FCloseFile( f );
+	}
+	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
+		if ( nw_achEver[i] ) {
+			G_Printf( "NeonWave: achievement already unlocked: %s\n",
+				NW_AchievementName( i ) );
+		}
+	}
+}
+
+static void NW_SaveAchievements( void ) {
+	fileHandle_t f;
+	int len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_WRITE );
+	if ( len < 0 || !f ) {
+		G_Printf( "NeonWave: WARNING cannot write " NW_ACHIEVEMENTS_FILE "\n" );
+		return;
+	}
+	trap_FS_Write( nw_achEver, sizeof( nw_achEver ), f );
+	trap_FS_FCloseFile( f );
+}
+
+// Evaluate per-run achievements, merge into lifetime state, emit log markers.
+// "ACHIEVEMENT <NAME>" fire every run the badge is earned (CI-assertable).
+// "ACHIEVEMENT UNLOCKED <NAME>" fires only the first time ever (player feedback).
 static void NW_CheckAchievements( int event ) {
 	int combo = NW_RunBestCombo();
 	int deaths = NW_RunDeaths();
 	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
 	int i;
 
-	// reset (defensive; NeonWave_Reset already clears)
+	// reset per-run bitmask (defensive; NeonWave_Reset already clears)
 	{
 		int ai;
 		for ( ai = 0; ai < NW_ACH_COUNT; ai++ ) {
@@ -939,13 +974,18 @@ static void NW_CheckAchievements( int event ) {
 	if ( victory && deaths == 0 ) {
 		nw_achievements[ NW_ACH_FLAWLESS ] = qtrue;
 	}
-	// emit log markers so headless CI can assert achievements deterministically
-	// (the run-stats json may be overwritten by the dedi server's map restart)
+
 	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
-		if ( nw_achievements[i] ) {
-			G_Printf( "NeonWave: ACHIEVEMENT %s\n", NW_AchievementName( i ) );
+		if ( !nw_achievements[i] ) {
+			continue;
+		}
+		G_Printf( "NeonWave: ACHIEVEMENT %s\n", NW_AchievementName( i ) );
+		if ( !nw_achEver[i] ) {
+			nw_achEver[i] = qtrue;
+			G_Printf( "NeonWave: ACHIEVEMENT UNLOCKED %s\n", NW_AchievementName( i ) );
 		}
 	}
+	NW_SaveAchievements();
 }
 
 // ---- run-stats JSON export (local dashboard data source) ----
