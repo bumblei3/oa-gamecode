@@ -47,6 +47,7 @@ static int nw_runBestCombo;		// run stats: best streak this run (survives bot di
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
 static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
+static qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run, run-stats JSON
 static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
@@ -204,6 +205,16 @@ void NeonWave_Reset( void ) {
 			nw_achievements[ai] = qfalse;
 		}
 	}
+	// hardcore mode: g_neonwave_hardcore 1 -> tougher run (more drones, harder
+	// bosses). Read once at run start so mid-run cvar changes don't shift it.
+	{
+		char hcBuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_hardcore", hcBuf, sizeof(hcBuf) );
+		nw_hardcore = ( atoi( hcBuf ) == 1 ) ? qtrue : qfalse;
+		if ( nw_hardcore ) {
+			G_Printf( "NeonWave: HARDCORE mode enabled\n" );
+		}
+	}
 	// test hook: force difficulty tier (g_neonwave_diffforce N, -2..1)
 	{
 		char dfBuf[8];
@@ -329,6 +340,10 @@ static void NW_SpawnBoss( void ) {
 	// dynamic difficulty (v0.16): scale boss HP with player performance
 	if ( nw_difficulty != 0 ) {
 		hc = hc * ( 100 + nw_difficulty * 15 ) / 100;
+	}
+	// hardcore mode: +50% boss HP
+	if ( nw_hardcore ) {
+		hc = hc * 3 / 2;
 	}
 	nw_bossType = type;
 	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
@@ -762,6 +777,11 @@ void NeonWave_StartWave( int num ) {
 	} else {
 		botCount = num + 1;
 	}
+	if ( nw_hardcore ) {
+		// hardcore: denser waves (+2 drones) and one notch harder skill
+		botCount += 2;
+		if ( skill < 5 ) skill += 1;
+	}
 
 	// apply modifier side effects
 	if ( nw_modifier == NW_MOD_LOWGRAV ) {
@@ -784,9 +804,13 @@ void NeonWave_StartWave( int num ) {
 
 	NW_SendStatus( NW_EV_RUNNING );
 	if ( nw_modifier != NW_MOD_NONE ) {
-		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s\\n\"", num, NW_ModifierName( nw_modifier ) ) );
+		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s\n\"", num, NW_ModifierName( nw_modifier ) ) );
 	} else {
-		trap_SendServerCommand( -1, va( "cp \"WAVE %i\\n\"", num ) );
+		trap_SendServerCommand( -1, va( "cp \"WAVE %i\n\"", num ) );
+	}
+	if ( nw_hardcore ) {
+		G_Printf( "NeonWave: HARDCORE banner\n" );
+		trap_SendServerCommand( -1, va( "cp \"HARDCORE\n\"" ) );
 	}
 	G_Printf( "NeonWave: starting wave %i (%i bots, skill %i)%s%s\n", num, botCount, skill,
 		num >= NW_BOSS_WAVE ? " + BOSS" : "",
@@ -1037,13 +1061,14 @@ static void NW_WriteRunStats( int event ) {
 		"  \"bestCombo\": %i,\n"
 		"  \"timeSec\": %i,\n"
 		"  \"difficulty\": \"%s\",\n"
+		"  \"hardcore\": %i,\n"
 		"  \"modifiersSeen\": %i,\n"
 		"  \"modifierNames\": [%s],\n"
 		"  \"achievements\": [%s]\n"
 		"}\n",
 		( event == NW_EV_VICTORY ) ? "VICTORY" : "FAILED",
 		nw_wave, kills, bestCombo, runSec,
-		NW_DifficultyName( nw_difficulty ), modCount, mods, achs );
+		NW_DifficultyName( nw_difficulty ), nw_hardcore ? 1 : 0, modCount, mods, achs );
 
 	len = trap_FS_FOpenFile( NW_RUNSTATS_FILE, &f, FS_WRITE );
 	if ( len < 0 || !f ) {
