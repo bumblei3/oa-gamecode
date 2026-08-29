@@ -170,6 +170,7 @@ static void NW_DailyInit( void ) {
 	nw_dailyOffset = 0;
 	nw_dailyBossOffset = 0;
 	trap_Cvar_Set( "ui_neonwave_daily", "0" );
+	trap_Cvar_Set( "ui_neonwave_dailymap", "" );
 
 	trap_Cvar_VariableStringBuffer( "g_neonwave_daily", buf, sizeof(buf) );
 	if ( atoi( buf ) != 1 ) {
@@ -190,6 +191,12 @@ static void NW_DailyInit( void ) {
 	nw_dailyActive = qtrue;
 	nw_dailyOffset = forced % NW_MOD_POOL_SIZE;
 	nw_dailyBossOffset = ( forced / NW_MOD_POOL_SIZE ) % NW_BOSS_COUNT;
+	{
+		static const char *pool[3] = { "oa_shine", "oa_minia", "oa_rpg3dm2" };
+		int mi = ( forced / ( NW_MOD_POOL_SIZE * NW_BOSS_COUNT ) ) % 3;
+		G_Printf( "NeonWave: DAILY MAP %s\n", pool[mi] );
+		trap_Cvar_Set( "ui_neonwave_dailymap", pool[mi] );
+	}
 	// mirror for the cgame HUD (DAILY badge on the wave title)
 	trap_Cvar_Set( "ui_neonwave_daily", "1" );
 }

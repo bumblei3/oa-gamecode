@@ -1443,6 +1443,17 @@ static float CG_DrawNeonWave(float y) {
 	}
 	CG_DrawBigStringColor(320 - w/2, y, s, color);
 	y += BIGCHAR_HEIGHT + 8;
+	if (daily) {
+		char mbuf[32];
+		trap_Cvar_VariableStringBuffer("ui_neonwave_dailymap", mbuf, sizeof(mbuf));
+		if (mbuf[0]) {
+			vec4_t dcol = {1.0f, 0.65f, 0.1f, 1.0f};
+			Com_sprintf(s, sizeof(s), "MAP %s", mbuf);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, dcol);
+			y += SMALLCHAR_HEIGHT + 4;
+		}
+	}
 
 	// live combo popup: field 12 of the payload; shows while a streak of 2+
 	// is hot (3s window maintained by g_combat.c)
