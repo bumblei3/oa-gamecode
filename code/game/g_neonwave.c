@@ -5,7 +5,7 @@
 #ifdef NEONARENA_MOD
 
 #define NW_FIRST_WAVE_DELAY	5000	// ms after map start
-#define NW_WAVE_BREAK		8000	// ms between waves (upgrade window)
+#define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
 #define NW_BOSS_COUNT		5	// SNIPER TANK SWARM GLASS WARDEN — rotate each boss wave
@@ -253,6 +253,7 @@ void NeonWave_Reset( void ) {
 	nw_waveStartTime = 0;
 	trap_Cvar_Set( "ui_neonwave_offers", "" );
 	trap_Cvar_Set( "ui_neonwave_owned", "" );
+	trap_Cvar_Set( "ui_neonwave_picked", "0" );
 	NW_DailyInit();
 	NW_LoadRecords();
 	NW_LoadAchievements();
@@ -804,6 +805,7 @@ static void NW_RollOffers( void ) {
 	int a = 0, b = 0, c = 0;
 
 	nw_offer[0] = nw_offer[1] = nw_offer[2] = 0;
+	trap_Cvar_Set( "ui_neonwave_picked", "0" );
 
 	trap_Cvar_VariableStringBuffer( "g_neonwave_perkforce", force, sizeof( force ) );
 	// packed 3 digits (123 = PIERCE CHAIN DASH) — ioq3 +set cannot pass commas
@@ -868,6 +870,7 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	pts--;
 	trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", pts ) );
 	nw_offer[ slot - 1 ] = 0;
+	trap_Cvar_Set( "ui_neonwave_picked", va( "%i", slot ) );
 	G_Printf( "NeonWave: PERK TAKEN %s (stack %i, %i pts left)\n",
 		NW_PerkName( id ), nw_perk[id], pts );
 	if ( ent && ent->client ) {

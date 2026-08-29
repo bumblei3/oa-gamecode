@@ -1132,6 +1132,7 @@ typedef struct {
 	sfxHandle_t	count3Sound;
 	sfxHandle_t	neonWaveStartSound;
 	sfxHandle_t	neonMusicSound;
+	sfxHandle_t	neonPerkPickSound;
 	sfxHandle_t	count2Sound;
 	sfxHandle_t	count1Sound;
 	sfxHandle_t	countFightSound;

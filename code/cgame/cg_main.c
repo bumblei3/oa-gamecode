@@ -1262,6 +1262,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.neonComboChestShader = trap_R_RegisterShader("gfx/2d/comboChestPulse");
 	cgs.media.neonWaveStartSound = trap_S_RegisterSound("sound/neonwave_start.wav", qfalse);
 	cgs.media.neonMusicSound = trap_S_RegisterSound("sound/neonwave_music.wav", qfalse);
+	cgs.media.neonPerkPickSound = trap_S_RegisterSound("sound/nw_combo5.wav", qfalse);
 	cgs.media.neonRailImpactShader = trap_R_RegisterShader("railImpactGlow");
 	cgs.media.neonLgSparkShader = trap_R_RegisterShader("lgSparkBurst");
 #endif // NEONARENA_MOD

@@ -1260,6 +1260,66 @@ static void CG_DrawNeonLook(void) {
 	}
 }
 
+static const char *CG_NeonPerkBlurb(const char *name) {
+	if (!name || !name[0]) return "";
+	if (!Q_stricmp(name, "PIERCE")) return "Rail pierces extra";
+	if (!Q_stricmp(name, "CHAIN")) return "LG jumps nearby";
+	if (!Q_stricmp(name, "DASH")) return "1.7x speed for 1.5s";
+	if (!Q_stricmp(name, "OVERCHARGE")) return "Next wave harder, less HP";
+	if (!Q_stricmp(name, "SECOND WIND")) return "Survive one lethal hit";
+	if (!Q_stricmp(name, "SKIP")) return "Next wave, no modifier";
+	return "";
+}
+
+static void CG_DrawNeonPerkCard(int x, int y, int cw, int ch, int fkey,
+		const char *name, qboolean flash) {
+	vec4_t bg, edge, title, dim;
+	char s[64];
+	int w;
+	qboolean empty = (!name || !name[0]);
+
+	if (flash) {
+		bg[0] = 0.35f; bg[1] = 0.28f; bg[2] = 0.05f; bg[3] = 0.82f;
+		edge[0] = 1.0f; edge[1] = 0.85f; edge[2] = 0.2f; edge[3] = 0.95f;
+		title[0] = 1.0f; title[1] = 0.95f; title[2] = 0.4f; title[3] = 1.0f;
+	} else if (empty) {
+		bg[0] = 0.04f; bg[1] = 0.05f; bg[2] = 0.07f; bg[3] = 0.55f;
+		edge[0] = 0.15f; edge[1] = 0.2f; edge[2] = 0.22f; edge[3] = 0.5f;
+		title[0] = 0.4f; title[1] = 0.45f; title[2] = 0.5f; title[3] = 1.0f;
+	} else {
+		bg[0] = 0.03f; bg[1] = 0.10f; bg[2] = 0.14f; bg[3] = 0.78f;
+		edge[0] = 0.2f; edge[1] = 0.85f; edge[2] = 0.95f; edge[3] = 0.7f;
+		title[0] = 0.2f; title[1] = 1.0f; title[2] = 1.0f; title[3] = 1.0f;
+	}
+	dim[0] = 0.7f; dim[1] = 0.75f; dim[2] = 0.8f; dim[3] = empty ? 0.45f : 0.95f;
+
+	CG_FillRect(x - 2, y - 2, cw + 4, ch + 4, edge);
+	CG_FillRect(x, y, cw, ch, bg);
+	if (cgs.media.neonBarShader) {
+		CG_DrawPic(x - 4, y - 4, cw + 8, ch + 8, cgs.media.neonBarShader);
+	}
+	Com_sprintf(s, sizeof(s), "F%i", fkey);
+	w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+	CG_DrawSmallStringColor(x + cw/2 - w/2, y + 4, s, dim);
+	if (empty) {
+		Com_sprintf(s, sizeof(s), "TAKEN");
+	} else {
+		Com_sprintf(s, sizeof(s), "%s", name);
+	}
+	w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+	CG_DrawSmallStringColor(x + cw/2 - w/2, y + 20, s, title);
+	if (!empty) {
+		const char *blurb = CG_NeonPerkBlurb(name);
+		w = CG_DrawStrlen(blurb) * SMALLCHAR_WIDTH;
+		if (w > cw - 8) {
+			/* tiny screens: still draw, left-aligned inside the card */
+			CG_DrawSmallStringColor(x + 4, y + 40, blurb, dim);
+		} else {
+			CG_DrawSmallStringColor(x + cw/2 - w/2, y + 40, blurb, dim);
+		}
+	}
+}
+
 static float CG_DrawNeonWave(float y) {
 	char s[128];
 	int w, wave, ev = 0, best;
@@ -1483,14 +1543,21 @@ static float CG_DrawNeonWave(float y) {
 		}
 	}
 
-	// upgrade status: points + perk cards (offers in ui_neonwave_offers)
+	// upgrade shop: points, countdown, three perk cards, owned list
 	{
 		int up = cg.snap->ps.persistant[PERS_CAPTURES];
 		int pts = up & 0xFF;
 		int lvHp = (up >> 8) & 0xF, lvDmg = (up >> 12) & 0xF, lvSpd = (up >> 16) & 0xF;
+		int breakMs = 0;
 		vec4_t gold = {1.0f, 0.85f, 0.2f, 1.0f};
-		vec4_t cyan = {0.2f, 1.0f, 1.0f, 1.0f};
-		char offers[96], owned[96];
+		char offers[96], owned[96], pickBuf[8];
+		static int lastPicked = 0;
+		static int pickFlashUntil = 0;
+		int picked, i, cardY;
+		const int cw = 184, ch = 64, gap = 12;
+		const int rowW = cw * 3 + gap * 2;
+		const int x0 = (640 - rowW) / 2;
+		char *names[3];
 
 		if (pts > 0) {
 			Com_sprintf(s, sizeof(s), "UPGRADE POINTS: %i", pts);
@@ -1498,23 +1565,45 @@ static float CG_DrawNeonWave(float y) {
 			CG_DrawSmallStringColor(320 - w/2, y, s, gold);
 			y += SMALLCHAR_HEIGHT + 2;
 		}
+		if (ev == 1) {
+			const char *csB = CG_ConfigString(CS_NEONWAVE);
+			if (csB && csB[0] && sscanf(csB, "%*i %*i %*i %*i %i", &breakMs) == 1
+				&& breakMs > 0) {
+				int sec = (breakMs + 999) / 1000;
+				vec4_t warn = {1.0f, 0.55f, 0.2f, 1.0f};
+				Com_sprintf(s, sizeof(s), "NEXT WAVE IN %i", sec);
+				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(320 - w/2, y, s, sec <= 3 ? warn : gold);
+				y += SMALLCHAR_HEIGHT + 6;
+			}
+		}
+		trap_Cvar_VariableStringBuffer("ui_neonwave_picked", pickBuf, sizeof(pickBuf));
+		picked = atoi(pickBuf);
+		if (picked > 0 && picked != lastPicked) {
+			lastPicked = picked;
+			pickFlashUntil = cg.time + 450;
+			if (cgs.media.neonPerkPickSound) {
+				trap_S_StartLocalSound(cgs.media.neonPerkPickSound, CHAN_LOCAL_SOUND);
+			}
+		}
+		if (picked <= 0) {
+			lastPicked = 0;
+		}
 		if (ev == 1 && pts > 0) {
 			trap_Cvar_VariableStringBuffer("ui_neonwave_offers", offers, sizeof(offers));
 			if (offers[0]) {
-				char *p1 = offers, *p2, *p3;
-				p2 = strchr(p1, '|');
-				if (p2) { *p2++ = '\0'; } else { p2 = ""; }
-				p3 = strchr(p2, '|');
-				if (p3) { *p3++ = '\0'; } else { p3 = ""; }
-				Com_sprintf(s, sizeof(s), "F1 %s", p1[0] ? p1 : "-");
-				CG_DrawSmallStringColor(80, y, s, cyan);
-				Com_sprintf(s, sizeof(s), "F2 %s", p2[0] ? p2 : "-");
-				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
-				CG_DrawSmallStringColor(320 - w/2, y, s, cyan);
-				Com_sprintf(s, sizeof(s), "F3 %s", p3[0] ? p3 : "-");
-				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
-				CG_DrawSmallStringColor(560 - w, y, s, cyan);
-				y += SMALLCHAR_HEIGHT + 4;
+				names[0] = offers;
+				names[1] = strchr(offers, '|');
+				if (names[1]) { *names[1]++ = '\0'; } else { names[1] = ""; }
+				names[2] = strchr(names[1], '|');
+				if (names[2]) { *names[2]++ = '\0'; } else { names[2] = ""; }
+				cardY = y;
+				for (i = 0; i < 3; i++) {
+					qboolean flash = (picked == i + 1 && cg.time < pickFlashUntil);
+					CG_DrawNeonPerkCard(x0 + i * (cw + gap), cardY, cw, ch,
+						i + 1, names[i], flash);
+				}
+				y += ch + 10;
 			}
 		}
 		trap_Cvar_VariableStringBuffer("ui_neonwave_owned", owned, sizeof(owned));
