@@ -533,6 +533,11 @@ weapon_railgun_fire
 =================
 */
 #define	MAX_RAIL_HITS	4
+#ifdef NEONARENA_MOD
+#define	MAX_RAIL_UNLINK	12
+#else
+#define	MAX_RAIL_UNLINK	MAX_RAIL_HITS
+#endif
 void weapon_railgun_fire (gentity_t *ent)
 {
 	vec3_t		end;
@@ -545,7 +550,8 @@ void weapon_railgun_fire (gentity_t *ent)
 	int			hits;
 	int			unlinked;
 	int			passent;
-	gentity_t	*unlinkedEntities[MAX_RAIL_HITS];
+	int			maxHits;
+	gentity_t	*unlinkedEntities[MAX_RAIL_UNLINK];
 
 	damage = 100 * s_quadFactor;
 	if(g_instantgib.integer)
@@ -562,6 +568,16 @@ void weapon_railgun_fire (gentity_t *ent)
 	unlinked = 0;
 	hits = 0;
 	passent = ent->s.number;
+	maxHits = MAX_RAIL_HITS;
+#ifdef NEONARENA_MOD
+	if ( g_gametype.integer == GT_NEONWAVE && ent->client
+			&& !( ent->r.svFlags & SVF_BOT ) ) {
+		maxHits = MAX_RAIL_HITS + 2 * NeonWave_PerkLevel( NW_PERK_PIERCE );
+		if ( maxHits > MAX_RAIL_UNLINK ) {
+			maxHits = MAX_RAIL_UNLINK;
+		}
+	}
+#endif
 	do {
 		trap_Trace (&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT );
 		if ( trace.entityNum >= ENTITYNUM_MAX_NORMAL ) {
@@ -604,7 +620,7 @@ void weapon_railgun_fire (gentity_t *ent)
 		unlinkedEntities[unlinked] = traceEnt;
 		unlinked++;
 	}
-	while ( unlinked < MAX_RAIL_HITS );
+	while ( unlinked < maxHits );
 
 //unlagged - backward reconciliation #2
 	// put them back
@@ -778,6 +794,11 @@ void Weapon_LightningFire( gentity_t *ent )
 				ent->client->accuracy_hits++;
 			}
 			G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_LIGHTNING);
+#ifdef NEONARENA_MOD
+			if ( g_gametype.integer == GT_NEONWAVE ) {
+				NeonWave_LightningChain( ent, traceEnt, damage );
+			}
+#endif
 		}
 
 		if ( traceEnt->takedamage && traceEnt->client ) {

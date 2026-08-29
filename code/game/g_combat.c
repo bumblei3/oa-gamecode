@@ -506,6 +506,12 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	}
 
 #ifdef NEONARENA_MOD
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& self->client
+			&& !( self->r.svFlags & SVF_BOT )
+			&& NeonWave_TrySecondWind( self ) ) {
+		return;
+	}
 	// NeonWave: drone killed by a human -> count kills + combo streak
 	if ( g_gametype.integer == GT_NEONWAVE
 			&& attacker && attacker->client && attacker != self

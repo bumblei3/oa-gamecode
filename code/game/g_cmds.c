@@ -2263,8 +2263,8 @@ void Cmd_GetMappage_f( gentity_t *ent ) {
 Cmd_NeonUpgrade_f
 
 NeonWave: spend a banked upgrade point.
-Usage: upgrade hp | dmg | speed
-Levels: hp max 6, dmg max 5, speed max 5.
+Usage: upgrade 1|2|3     — pick a perk card (F1/F2/F3)
+       upgrade hp|dmg|speed — legacy stat levels
 ===============
 */
 #ifdef NEONARENA_MOD
@@ -2282,7 +2282,16 @@ static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
 	}
 	if ( !NeonWave_IsBreak() ) {
 		trap_SendServerCommand( ent - g_entities,
-			"print \"Spend upgrades between waves (F1 HP / F2 DMG / F3 SPEED)\n\"" );
+			"print \"Spend upgrades between waves (F1/F2/F3 perk cards)\n\"" );
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof(arg) );
+	if ( !Q_stricmp( arg, "1" ) || !Q_stricmp( arg, "2" ) || !Q_stricmp( arg, "3" ) ) {
+		if ( !NeonWave_BuyOffer( ent, atoi( arg ) ) ) {
+			trap_SendServerCommand( ent - g_entities,
+				"print \"Cannot take that perk (no points, empty slot, or at cap)\n\"" );
+		}
 		return;
 	}
 
@@ -2294,16 +2303,15 @@ static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
 		return;
 	}
 
-	trap_Argv( 1, arg, sizeof(arg) );
-	if ( !Q_stricmp( arg, "hp" ) || !Q_stricmp( arg, "1" ) ) {
+	if ( !Q_stricmp( arg, "hp" ) ) {
 		level = &ent->client->pers.neonwaveUpHp; cap = 6; what = "+25 max HP";
-	} else if ( !Q_stricmp( arg, "dmg" ) || !Q_stricmp( arg, "2" ) ) {
+	} else if ( !Q_stricmp( arg, "dmg" ) ) {
 		level = &ent->client->pers.neonwaveDmg; cap = 5; what = "+10% damage";
-	} else if ( !Q_stricmp( arg, "speed" ) || !Q_stricmp( arg, "3" ) ) {
+	} else if ( !Q_stricmp( arg, "speed" ) ) {
 		level = &ent->client->pers.neonwaveSpeed; cap = 5; what = "+5% speed";
 	} else {
 		trap_SendServerCommand( ent - g_entities,
-			"print \"usage: upgrade hp|dmg|speed  (F1/F2/F3 between waves)\n\"" );
+			"print \"usage: upgrade 1|2|3  (perk cards)  or  hp|dmg|speed\n\"" );
 		return;
 	}
 

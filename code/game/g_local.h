@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // the "gameversion" client command will print this plus compile date
 #ifdef NEONARENA_MOD
-# define	GAMEVERSION	"NeonArena-0.27"
+# define	GAMEVERSION	"NeonArena-0.28"
 #else
 #define	GAMEVERSION	BASEGAME
 #endif
@@ -906,6 +906,18 @@ void NeonWave_TrackRunCombo( int combo );
 void NeonWave_OnPlayerDeath( struct gclient_s *client );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
+#define NW_PERK_PIERCE		1
+#define NW_PERK_CHAIN		2
+#define NW_PERK_DASH		3
+#define NW_PERK_OVERCHARGE	4
+#define NW_PERK_SECONDWIND	5
+#define NW_PERK_SKIP		6
+#define NW_PERK_COUNT		7
+int NeonWave_PerkLevel( int perk );
+int NeonWave_WaveStartTime( void );
+qboolean NeonWave_TrySecondWind( gentity_t *ent );
+void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damage );
+qboolean NeonWave_BuyOffer( gentity_t *ent, int slot );
 void CheckTeamVote( int team );
 
 //

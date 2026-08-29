@@ -1261,8 +1261,8 @@ static void CG_DrawNeonLook(void) {
 }
 
 static float CG_DrawNeonWave(float y) {
-	char s[64];
-	int w, wave, ev, best;
+	char s[128];
+	int w, wave, ev = 0, best;
 	qboolean daily = qfalse;
 	vec4_t color = {0.2f, 1.0f, 1.0f, 1.0f};
 	static int lastWaveEvent = -1;
@@ -1483,23 +1483,45 @@ static float CG_DrawNeonWave(float y) {
 		}
 	}
 
-	// upgrade status: points + levels (packed by NW_SyncUpgrades into
-	// ps.persistant[PERS_CAPTURES]: bits 0-7 pts, 8-11 hp, 12-15 dmg, 16-19 spd)
+	// upgrade status: points + perk cards (offers in ui_neonwave_offers)
 	{
 		int up = cg.snap->ps.persistant[PERS_CAPTURES];
 		int pts = up & 0xFF;
 		int lvHp = (up >> 8) & 0xF, lvDmg = (up >> 12) & 0xF, lvSpd = (up >> 16) & 0xF;
 		vec4_t gold = {1.0f, 0.85f, 0.2f, 1.0f};
-		vec4_t dimw = {0.55f, 0.55f, 0.6f, 1.0f};
+		vec4_t cyan = {0.2f, 1.0f, 1.0f, 1.0f};
+		char offers[96], owned[96];
 
 		if (pts > 0) {
 			Com_sprintf(s, sizeof(s), "UPGRADE POINTS: %i", pts);
 			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
 			CG_DrawSmallStringColor(320 - w/2, y, s, gold);
 			y += SMALLCHAR_HEIGHT + 2;
-			Com_sprintf(s, sizeof(s), "F1 HP   F2 DMG   F3 SPD");
+		}
+		if (ev == 1 && pts > 0) {
+			trap_Cvar_VariableStringBuffer("ui_neonwave_offers", offers, sizeof(offers));
+			if (offers[0]) {
+				char *p1 = offers, *p2, *p3;
+				p2 = strchr(p1, '|');
+				if (p2) { *p2++ = '\0'; } else { p2 = ""; }
+				p3 = strchr(p2, '|');
+				if (p3) { *p3++ = '\0'; } else { p3 = ""; }
+				Com_sprintf(s, sizeof(s), "F1 %s", p1[0] ? p1 : "-");
+				CG_DrawSmallStringColor(80, y, s, cyan);
+				Com_sprintf(s, sizeof(s), "F2 %s", p2[0] ? p2 : "-");
+				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(320 - w/2, y, s, cyan);
+				Com_sprintf(s, sizeof(s), "F3 %s", p3[0] ? p3 : "-");
+				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(560 - w, y, s, cyan);
+				y += SMALLCHAR_HEIGHT + 4;
+			}
+		}
+		trap_Cvar_VariableStringBuffer("ui_neonwave_owned", owned, sizeof(owned));
+		if (owned[0]) {
+			Com_sprintf(s, sizeof(s), "PERKS: %s", owned);
 			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
-			CG_DrawSmallStringColor(320 - w/2, y, s, dimw);
+			CG_DrawSmallStringColor(320 - w/2, y, s, gold);
 			y += SMALLCHAR_HEIGHT + 4;
 		}
 		if (lvHp || lvDmg || lvSpd) {
