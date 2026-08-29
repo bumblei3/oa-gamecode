@@ -8,19 +8,20 @@
 #define NW_WAVE_BREAK		8000	// ms between waves (upgrade window)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
+#define NW_BOSS_COUNT		5	// SNIPER TANK SWARM GLASS WARDEN — rotate each boss wave
 
 // Test hooks (used by CI smoke test):
 //   g_neonwave_autostart 1   -> waves start without a human player (headless test)
 //   g_neonwave_startwave N   -> force-start wave N (polled in NeonWave_Frame)
 
-// CS_NEONWAVE payload: "<wave> <event> <bossHp> <bossMax> <breakMs> <pts> <best> <modifier>"
+// CS_NEONWAVE payload: "<wave> <event> <bossHp> <bossMax> <breakMs> <pts> <best> <mod> <kills> <bestCombo> <runSec> <liveCombo> <bossType>"
 // event: 0 running, 1 cleared/break, 2 failed, 3 victory
 #define NW_EV_RUNNING		0
 #define NW_EV_CLEARED		1
 #define NW_EV_FAILED		2
 #define NW_EV_VICTORY		3
 
-// wave modifiers (from wave 5, one per wave, boss waves excluded)
+// wave modifiers (from wave 5 through max-1, including boss waves)
 #define NW_MOD_NONE		0
 #define NW_MOD_GLASS		1	// all drones die to one hit, but +2 skill aggression
 #define NW_MOD_SWARM		2	// double drone count, skill capped lower
@@ -30,6 +31,7 @@
 #define NW_MOD_VAMPIRE		6	// each kill heals the player a few HP (lifesteal)
 #define NW_MOD_FRENZY		7	// g_quadfactor boosted -> shots hit much harder
 #define NW_MOD_OVERSHIELD	8	// player granted bonus armor at wave start
+#define NW_MOD_POOL_SIZE	8
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -37,7 +39,10 @@
 #define NW_ACH_SHARPSHOOTER	2	// best combo >= 8
 #define NW_ACH_STREAKER		3	// best combo >= 5
 #define NW_ACH_FLAWLESS		4	// victory with 0 deaths
-#define NW_ACH_COUNT		5
+#define NW_ACH_COMBOMASTER	5	// best combo >= 12
+#define NW_ACH_SPEEDRUNNER	6	// victory under time target (300s)
+#define NW_ACH_HARDCORE		7	// victory in hardcore mode
+#define NW_ACH_COUNT		8
 
 static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
@@ -136,8 +141,8 @@ static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
 // the same boss/modifier sequence on the same day. Enable via
 // g_neonwave_daily 1 (or force a seed with g_neonwave_dailyseed N for tests).
 static qboolean nw_dailyActive;
-static int nw_dailyOffset;		// modifier pool rotation 0-3
-static int nw_dailyBossOffset;	// boss rotation offset 0-3
+static int nw_dailyOffset;		// modifier pool rotation 0..(NW_MOD_POOL_SIZE-1)
+static int nw_dailyBossOffset;	// boss rotation offset 0..(NW_BOSS_COUNT-1)
 
 #define NW_DAILY_FNV_PRIME		16777619u
 #define NW_DAILY_FNV_OFFSET		2166136261u
@@ -179,8 +184,8 @@ static void NW_DailyInit( void ) {
 		G_Printf( "NeonWave: DAILY CHALLENGE %s seed %i\n", dateStr, forced );
 	}
 	nw_dailyActive = qtrue;
-	nw_dailyOffset = forced % 4;
-	nw_dailyBossOffset = ( forced / 4 ) % 4;
+	nw_dailyOffset = forced % NW_MOD_POOL_SIZE;
+	nw_dailyBossOffset = ( forced / NW_MOD_POOL_SIZE ) % NW_BOSS_COUNT;
 	// mirror for the cgame HUD (DAILY badge on the wave title)
 	trap_Cvar_Set( "ui_neonwave_daily", "1" );
 }
@@ -198,6 +203,7 @@ void NeonWave_Reset( void ) {
 	nw_wave = 0;
 	nw_aliveBots = 0;
 	nw_modifier = NW_MOD_NONE;
+	nw_bossType = 0;
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
 	nw_difficulty = 0;
@@ -303,17 +309,18 @@ static int NW_PickBossType( void ) {
 	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_WARDEN ) {
 		return forced;
 	}
-	// rotate by boss-wave count: wave 10 = sniper, 20 = tank, 30 = swarm,
-	// 40 = glass cannon, ... daily challenge shifts the rotation start
+	// one step per boss wave so a classic 20-wave run sees all five types:
+	// wave 10 SNIPER, 11 TANK, 12 SWARM MOTHER, 13 GLASS CANNON, 14 WARDEN, ...
+	// daily challenge shifts the rotation start
 	{
-		int rot = ( nw_wave / NW_BOSS_WAVE - 1 ) % 4;
+		int rot = ( nw_wave - NW_BOSS_WAVE ) % NW_BOSS_COUNT;
+		if ( rot < 0 ) {
+			rot += NW_BOSS_COUNT;
+		}
 		if ( nw_dailyActive ) {
-			rot = ( rot + nw_dailyBossOffset ) % 4;
+			rot = ( rot + nw_dailyBossOffset ) % NW_BOSS_COUNT;
 		}
-		if ( nw_wave / NW_BOSS_WAVE >= 4 ) {
-			return NW_BOSS_SNIPER + rot;
-		}
-		return NW_BOSS_SNIPER + ( rot % 3 );
+		return NW_BOSS_SNIPER + rot;
 	}
 }
 
@@ -659,11 +666,11 @@ static void NW_SendStatus( int event ) {
 	if ( nw_inBreak && nw_breakEnd > level.time ) {
 		breakMs = nw_breakEnd - level.time;
 	}
-	// append run stats: "<wave> <ev> <bhp> <bmax> <brk> <pts> <best> <mod> <kills> <bestcombo> <runsec> <livecombo>"
-	trap_SetConfigstring( CS_NEONWAVE, va( "%i %i %i %i %i %i %i %i %i %i %i %i",
+	// payload: "<wave> <ev> <bhp> <bmax> <brk> <pts> <best> <mod> <kills> <bestcombo> <runsec> <livecombo> <bosstype>"
+	trap_SetConfigstring( CS_NEONWAVE, va( "%i %i %i %i %i %i %i %i %i %i %i %i %i",
 		nw_wave, event, bossHp, bossMax, breakMs, NW_Points(), NW_Best(), nw_modifier,
 		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000,
-		NW_RunCurrentCombo() ) );
+		NW_RunCurrentCombo(), ( bossHp > 0 ) ? nw_bossType : 0 ) );
 }
 
 void NeonWave_RefreshStatus( void ) {
@@ -702,7 +709,7 @@ void NeonWave_DropReward( int clearedWave ) {
 
 static void NeonWave_LogPayload( void ) {
 // explizites Loggen der CS_NEONWAVE-Payload für strukturiertes Parsen in Tests
-// Format: <wave> <event> <bossHp> <bossMax> <breakMs> <pts> <best> <mod> <kills> <bestCombo> <runSec> <liveCombo>
+// Format: <wave> <event> <bossHp> <bossMax> <breakMs> <pts> <best> <mod> <kills> <bestCombo> <runSec> <liveCombo> <bossType>
 char buf[256];
 trap_GetConfigstring( CS_NEONWAVE, buf, sizeof(buf) );
 G_Printf( "NEONWAVE_PAYLOAD: %s\n", buf );
@@ -717,25 +724,34 @@ static void NeonWave_UpdateHighscore( void ) {
 }
 
 static void NW_PickModifier( int num ) {
-	static const int pool[8] = { NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS, NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD };
+	static const int pool[NW_MOD_POOL_SIZE] = {
+		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
+		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD
+	};
 	int idx;
+	int maxWave;
 	char mbBuf[8];
+	char mwBuf[8];
 
 	nw_modifier = NW_MOD_NONE;
-	if ( num < 5 || num >= NW_BOSS_WAVE || num == NW_MAX_WAVE ) {
-	return;
+	trap_Cvar_VariableStringBuffer( "g_neonwave_maxwave", mwBuf, sizeof(mwBuf) );
+	maxWave = atoi( mwBuf );
+	if ( maxWave <= 0 ) {
+		maxWave = NW_MAX_WAVE;
+	}
+	// waves 5 .. max-1 (boss waves included) so a classic run sees the full pool
+	if ( num < 5 || num >= maxWave ) {
+		return;
 	}
 	// test hook: g_neonwave_modifier N forces modifier 1-8
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
 	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_OVERSHIELD ) {
-	nw_modifier = atoi( mbBuf );
-	return;
+		nw_modifier = atoi( mbBuf );
+		return;
 	}
-	// daily challenge: derive the modifier rotation offset from the date seed
-	if ( nw_dailyActive ) {
-	idx = ( num / 2 + num % 3 + nw_dailyOffset ) % 5;
-	} else {
-	idx = ( num / 2 + num % 3 ) % 5;
+	idx = ( num - 5 + nw_dailyOffset ) % NW_MOD_POOL_SIZE;
+	if ( idx < 0 ) {
+		idx += NW_MOD_POOL_SIZE;
 	}
 	nw_modifier = pool[idx];
 }
@@ -770,6 +786,7 @@ void NeonWave_StartWave( int num ) {
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
 	nw_waveHadBots = qfalse;
+	nw_bossType = 0;
 
 	// endless mode: past the classic max wave, keep scaling difficulty
 	trap_Cvar_VariableStringBuffer( "g_neonwave_maxwave", mwBuf, sizeof(mwBuf) );
@@ -951,7 +968,7 @@ static void NW_KickBots( void ) {
 // ---- achievements (persistent badges, exposed in run-stats JSON) ----
 // Per-run badges are computed at game over and mirrored into the run-stats JSON
 // (achievements[]). Unlocked-ever state is persisted to neonwave_achievements.dat
-// so a player-side dashboard can show lifetime progress (X/5 unlocked).
+// so a player-side dashboard can show lifetime progress (X/8 unlocked).
 static const char *NW_AchievementName( int id ) {
 	switch ( id ) {
 	case NW_ACH_FIRST_VICTORY: return "FIRST VICTORY";
@@ -959,6 +976,9 @@ static const char *NW_AchievementName( int id ) {
 	case NW_ACH_SHARPSHOOTER:  return "SHARPSHOOTER";
 	case NW_ACH_STREAKER:      return "STREAKER";
 	case NW_ACH_FLAWLESS:      return "FLAWLESS";
+	case NW_ACH_COMBOMASTER:  return "COMBOMASTER";
+	case NW_ACH_SPEEDRUNNER:  return "SPEEDRUNNER";
+	case NW_ACH_HARDCORE:     return "HARDCORE";
 	default:                   return "";
 	}
 }
@@ -968,10 +988,17 @@ static qboolean nw_achEver[ NW_ACH_COUNT ]; // unlocked at least once (lifetime)
 
 static void NW_LoadAchievements( void ) {
 	fileHandle_t f;
-	int i;
+	int i, len, n;
 	memset( nw_achEver, 0, sizeof( nw_achEver ) );
-	if ( trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_READ ) >= 0 && f ) {
-		trap_FS_Read( nw_achEver, sizeof( nw_achEver ), f );
+	len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_READ );
+	if ( len >= 0 && f ) {
+		n = len;
+		if ( n > (int)sizeof( nw_achEver ) ) {
+			n = (int)sizeof( nw_achEver );
+		}
+		if ( n > 0 ) {
+			trap_FS_Read( nw_achEver, n, f );
+		}
 		trap_FS_FCloseFile( f );
 	}
 	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
@@ -1000,6 +1027,7 @@ static void NW_CheckAchievements( int event ) {
 	int combo = NW_RunBestCombo();
 	int deaths = NW_RunDeaths();
 	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
+	int runSec = ( level.time - nw_runStartTime ) / 1000;
 	int i;
 
 	// reset per-run bitmask (defensive; NeonWave_Reset already clears)
@@ -1023,6 +1051,15 @@ static void NW_CheckAchievements( int event ) {
 	}
 	if ( victory && deaths == 0 ) {
 		nw_achievements[ NW_ACH_FLAWLESS ] = qtrue;
+	}
+	if ( combo >= 12 ) {
+		nw_achievements[ NW_ACH_COMBOMASTER ] = qtrue;
+	}
+	if ( victory && runSec <= 300 ) {
+		nw_achievements[ NW_ACH_SPEEDRUNNER ] = qtrue;
+	}
+	if ( victory && nw_hardcore ) {
+		nw_achievements[ NW_ACH_HARDCORE ] = qtrue;
 	}
 
 	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
@@ -1054,13 +1091,14 @@ static void NW_WriteRunStats( int event ) {
 	char buf[1024];
 	char mods[256];
 	char achs[256];
-	const char *modNames[6] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
-	                           "DOUBLE POINTS", "TIME WARP" };
+	const char *modNames[9] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
+	                           "DOUBLE POINTS", "TIME WARP", "VAMPIRE",
+	                           "FRENZY", "OVERSHIELD" };
 
 	NW_CheckAchievements( event );
 
 	mods[0] = '\0';
-	for ( i = 1; i <= 5; i++ ) {
+	for ( i = 1; i <= NW_MOD_POOL_SIZE; i++ ) {
 		if ( nw_modifiersSeen & ( 1 << i ) ) {
 			modCount++;
 			Com_sprintf( mods + strlen( mods ), sizeof(mods) - strlen( mods ),
@@ -1113,8 +1151,10 @@ static void NW_GameOver( int event, const char *why ) {
 	nw_over = qtrue;
 	nw_inBreak = qfalse;
 	nw_overVictory = ( event == NW_EV_VICTORY ) ? qtrue : qfalse;
-	// restore gravity in case we ended during a low-grav wave
+	// restore wave-scoped cvars in case we ended during a modifier
 	trap_Cvar_Set( "g_gravity", "800" );
+	trap_Cvar_Set( "g_speed", "320" );
+	trap_Cvar_Set( "g_quadfactor", "3" );
 	NeonWave_UpdateHighscore();
 	NW_UpdateRecords();
 	NW_SendStatus( event );
@@ -1399,17 +1439,21 @@ void NeonWave_Frame( void ) {
 			trap_Cvar_VariableStringBuffer( "g_neonwave_autokill", akBuf, sizeof(akBuf) );
 			if ( atoi( akBuf ) == 1 ) {
 				gentity_t *heal = NULL;
+				if ( nw_modifier == NW_MOD_VAMPIRE ) {
+					heal = NW_VampireHealTarget();
+				}
 				for ( i = 0; i < level.maxclients; i++ ) {
 					ent = &g_entities[i];
 					if ( !ent->inuse || !ent->client ) continue;
 					if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
 					if ( ent->health <= 0 ) continue;
+					// heal first: bot-as-player is also in this list, and healing
+					// AFTER setting health 0 would revive them every frame.
+					if ( heal && heal->health > 0 ) {
+						NW_VampireHeal( heal );
+					}
 					ent->health = 0;
 					ent->client->ps.stats[STAT_HEALTH] = 0;
-					if ( nw_modifier == NW_MOD_VAMPIRE ) {
-						if ( !heal ) heal = NW_VampireHealTarget();
-						if ( heal ) NW_VampireHeal( heal );
-					}
 				}
 			}
 		}

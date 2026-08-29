@@ -1363,7 +1363,6 @@ static float CG_DrawNeonWave(float y) {
 	}
 
 	// modifier color coding: field 8 of the payload tints the screen edge
-	// GLASS=cyan pulse SWARM=orange LOWGRAV=violet DOUBLEPTS=gold
 	{
 		const char *csM = CG_ConfigString(CS_NEONWAVE);
 		int mod = 0;
@@ -1376,7 +1375,12 @@ static float CG_DrawNeonWave(float y) {
 			case 1: tint[0]=0.0f; tint[1]=0.6f; tint[2]=0.8f; break; // glass: cyan
 			case 2: tint[0]=0.8f; tint[1]=0.4f; tint[2]=0.0f; break; // swarm: orange
 			case 3: tint[0]=0.5f; tint[1]=0.0f; tint[2]=0.8f; break; // lowgrav: violet
-			default: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break; // dbl pts: gold
+			case 4: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break; // dbl pts: gold
+			case 5: tint[0]=0.3f; tint[1]=0.7f; tint[2]=1.0f; break; // timewarp: ice
+			case 6: tint[0]=0.7f; tint[1]=0.0f; tint[2]=0.15f; break; // vampire: blood
+			case 7: tint[0]=1.0f; tint[1]=0.2f; tint[2]=0.5f; break; // frenzy: hot pink
+			case 8: tint[0]=0.7f; tint[1]=0.8f; tint[2]=1.0f; break; // overshield: steel
+			default: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break;
 			}
 			tint[3] = 0.06f + 0.08f * pulse;
 			// top and bottom edge bars instead of full-screen fill
@@ -1445,11 +1449,12 @@ static float CG_DrawNeonWave(float y) {
 		}
 	}
 
-	// boss health bar (payload: "<wave> <ev> <bossHp> <bossMax>")
+	// boss health bar (payload: "<wave> <ev> <bossHp> <bossMax> ... <bossType>")
 	{
 		const char *cs = CG_ConfigString(CS_NEONWAVE);
-		int bossHp = 0, bossMax = 0;
-		if (cs && cs[0] && sscanf(cs, "%*i %*i %i %i", &bossHp, &bossMax) == 2
+		int bossHp = 0, bossMax = 0, bossType = 0;
+		if (cs && cs[0] && sscanf(cs, "%*i %*i %i %i %*i %*i %*i %*i %*i %*i %*i %*i %i",
+				&bossHp, &bossMax, &bossType) >= 2
 			&& bossHp > 0 && bossMax > 0) {
 			vec4_t magenta = {1.0f, 0.2f, 1.0f, 1.0f};
 			vec4_t magentaDim = {0.18f, 0.04f, 0.22f, 0.85f};
@@ -1457,7 +1462,14 @@ static float CG_DrawNeonWave(float y) {
 			int barW = 260, barH = 12;
 			int fill = bossHp * (barW - 4) / bossMax;
 			int bx = 320 - barW / 2;
-			Com_sprintf(s, sizeof(s), "BOSS");
+			switch (bossType) {
+			case 1: Com_sprintf(s, sizeof(s), "SNIPER"); break;
+			case 2: Com_sprintf(s, sizeof(s), "TANK"); break;
+			case 3: Com_sprintf(s, sizeof(s), "SWARM MOTHER"); break;
+			case 4: Com_sprintf(s, sizeof(s), "GLASS CANNON"); break;
+			case 5: Com_sprintf(s, sizeof(s), "WARDEN"); break;
+			default: Com_sprintf(s, sizeof(s), "BOSS"); break;
+			}
 			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
 			CG_DrawSmallStringColor(320 - w/2, y, s, magenta);
 			y += SMALLCHAR_HEIGHT + 2;
