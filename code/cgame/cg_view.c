@@ -685,6 +685,23 @@ static int CG_CalcFov( void ) {
 	}
 
 
+#ifdef NEONARENA_MOD
+	{
+		float dashKick;
+		CG_NeonPerkFxPulse();
+		dashKick = CG_NeonDashFovKick();
+		if (dashKick > 0.0f) {
+			fov_x += dashKick;
+			if (fov_x > 160.0f) {
+				fov_x = 160.0f;
+			}
+			x = cg.refdef.width / tan( fov_x / 360 * M_PI );
+			fov_y = atan2( cg.refdef.height, x );
+			fov_y = fov_y * 360 / M_PI;
+		}
+	}
+#endif
+
 	// set it
 	cg.refdef.fov_x = fov_x;
 	cg.refdef.fov_y = fov_y;

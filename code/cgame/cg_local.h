@@ -2028,6 +2028,11 @@ extern int wideAdjustX;
 void	trap_R_LFX_ParticleEffect( int effect, const vec3_t origin, const vec3_t velocity ); // leilei - particle effects. this allows to pick an effect, such as..
 void	trap_R_GetViewPosition( vec3_t point );
 
+#ifdef NEONARENA_MOD
+void CG_NeonPerkFxPulse( void );
+float CG_NeonDashFovKick( void );
+#endif
+
 #define	LFX_SMOKEPUFF		1;
 #define	LFX_BULLETHIT		2;
 #define	LFX_SHOTGUNHIT		3;

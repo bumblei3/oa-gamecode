@@ -1237,9 +1237,49 @@ CG_DrawNeonWave
 =================
  */
 #ifdef NEONARENA_MOD
+static int neonDashUntil;
+static int neonFlashUntil;
+static vec4_t neonFlashColor;
+
+void CG_NeonPerkFxPulse(void) {
+	char buf[32];
+	static char last[32];
+
+	trap_Cvar_VariableStringBuffer("ui_neonwave_fx", buf, sizeof(buf));
+	if (!buf[0] || !Q_stricmp(buf, last)) {
+		return;
+	}
+	Q_strncpyz(last, buf, sizeof(last));
+	if (!Q_strncmp(buf, "dash", 4)) {
+		neonDashUntil = cg.time + 1500;
+	} else if (!Q_strncmp(buf, "overcharge", 10)) {
+		neonFlashUntil = cg.time + 420;
+		neonFlashColor[0] = 0.7f; neonFlashColor[1] = 0.05f;
+		neonFlashColor[2] = 0.55f; neonFlashColor[3] = 0.28f;
+	} else if (!Q_strncmp(buf, "secondwind", 10)) {
+		neonFlashUntil = cg.time + 500;
+		neonFlashColor[0] = 1.0f; neonFlashColor[1] = 0.85f;
+		neonFlashColor[2] = 0.2f; neonFlashColor[3] = 0.32f;
+	} else if (!Q_strncmp(buf, "pierce", 6)) {
+		neonFlashUntil = cg.time + 180;
+		neonFlashColor[0] = 0.15f; neonFlashColor[1] = 0.85f;
+		neonFlashColor[2] = 1.0f; neonFlashColor[3] = 0.18f;
+	}
+}
+
+float CG_NeonDashFovKick(void) {
+	int remain = neonDashUntil - cg.time;
+	if (remain <= 0) {
+		return 0.0f;
+	}
+	return 10.0f * (float)remain / 1500.0f;
+}
+
 static void CG_DrawNeonLook(void) {
 	vec4_t dim = {0.00f, 0.02f, 0.05f, 0.20f};
 	int bossHp = 0, bossMax = 0;
+
+	CG_NeonPerkFxPulse();
 
 	// boss alive? -> pulsing magenta danger vignette
 	{
@@ -1257,6 +1297,22 @@ static void CG_DrawNeonLook(void) {
 	CG_FillRect(0, 0, 640, 480, dim);
 	if (cgs.media.neonVignetteShader) {
 		CG_DrawPic(0, 0, 640, 480, cgs.media.neonVignetteShader);
+	}
+	if (cg.time < neonFlashUntil) {
+		vec4_t c;
+		float fade = (float)(neonFlashUntil - cg.time) / 420.0f;
+		if (fade > 1.0f) fade = 1.0f;
+		c[0] = neonFlashColor[0]; c[1] = neonFlashColor[1];
+		c[2] = neonFlashColor[2]; c[3] = neonFlashColor[3] * fade;
+		CG_FillRect(0, 0, 640, 480, c);
+	}
+	if (cg.time < neonDashUntil) {
+		vec4_t cyan;
+		float pulse = 0.5f + 0.5f * (float)sin(cg.time / 80.0);
+		cyan[0] = 0.1f; cyan[1] = 0.9f; cyan[2] = 1.0f;
+		cyan[3] = 0.08f + 0.10f * pulse;
+		CG_FillRect(0, 0, 640, 18, cyan);
+		CG_FillRect(0, 462, 640, 18, cyan);
 	}
 }
 

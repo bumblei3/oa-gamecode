@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // the "gameversion" client command will print this plus compile date
 #ifdef NEONARENA_MOD
-# define	GAMEVERSION	"NeonArena-0.29"
+# define	GAMEVERSION	"NeonArena-0.30"
 #else
 #define	GAMEVERSION	BASEGAME
 #endif
@@ -918,6 +918,7 @@ int NeonWave_WaveStartTime( void );
 qboolean NeonWave_TrySecondWind( gentity_t *ent );
 void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damage );
 qboolean NeonWave_BuyOffer( gentity_t *ent, int slot );
+void NeonWave_PerkFx( const char *kind );
 void CheckTeamVote( int team );
 
 //

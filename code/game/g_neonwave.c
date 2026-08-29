@@ -137,6 +137,7 @@ static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
 static int nw_perk[ NW_PERK_COUNT ];	// stacks/charges, index 1..6
 static int nw_offer[ 3 ];			// break-window perk cards (0 = empty)
 static int nw_waveStartTime;
+static int nw_fxSeq;
 
 // ---- daily challenge (v0.14) ----
 // Deterministic per-date challenge: an FNV-1a hash over YYYY-MM-DD derives
@@ -254,6 +255,8 @@ void NeonWave_Reset( void ) {
 	trap_Cvar_Set( "ui_neonwave_offers", "" );
 	trap_Cvar_Set( "ui_neonwave_owned", "" );
 	trap_Cvar_Set( "ui_neonwave_picked", "0" );
+	trap_Cvar_Set( "ui_neonwave_fx", "" );
+	nw_fxSeq = 0;
 	NW_DailyInit();
 	NW_LoadRecords();
 	NW_LoadAchievements();
@@ -768,6 +771,14 @@ int NeonWave_WaveStartTime( void ) {
 	return nw_waveStartTime;
 }
 
+void NeonWave_PerkFx( const char *kind ) {
+	if ( !kind || !kind[0] ) {
+		return;
+	}
+	nw_fxSeq++;
+	trap_Cvar_Set( "ui_neonwave_fx", va( "%s-%i", kind, nw_fxSeq ) );
+}
+
 static void NW_MirrorPerks( void ) {
 	char offers[96];
 	char owned[96];
@@ -900,6 +911,7 @@ qboolean NeonWave_TrySecondWind( gentity_t *ent ) {
 	ent->client->ps.pm_type = PM_NORMAL;
 	G_Printf( "NeonWave: SECOND WIND saved the player\n" );
 	trap_SendServerCommand( -1, "cp \"SECOND WIND\\n\"" );
+	NeonWave_PerkFx( "secondwind" );
 	NW_MirrorPerks();
 	return qtrue;
 }
@@ -948,6 +960,17 @@ void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damag
 		VectorSubtract( best->r.currentOrigin, from->r.currentOrigin, delta );
 		G_Damage( best, attacker, attacker, delta, best->r.currentOrigin,
 			damage * 3 / 4, 0, MOD_LIGHTNING );
+		{
+			gentity_t *bolt;
+			vec3_t start, end;
+			VectorCopy( from->r.currentOrigin, start );
+			VectorCopy( best->r.currentOrigin, end );
+			start[2] += 24;
+			end[2] += 24;
+			bolt = G_TempEntity( end, EV_LIGHTNINGBOLT );
+			VectorCopy( start, bolt->s.origin2 );
+			SnapVector( bolt->s.origin2 );
+		}
 		G_Printf( "NeonWave: LG CHAIN hop %i\n", h + 1 );
 		from = best;
 	}
@@ -1117,7 +1140,11 @@ void NeonWave_StartWave( int num ) {
 		}
 		nw_perk[ NW_PERK_OVERCHARGE ]--;
 		G_Printf( "NeonWave: OVERCHARGE active (quadfactor %i)\n", qf + 2 );
+		NeonWave_PerkFx( "overcharge" );
 		NW_MirrorPerks();
+	}
+	if ( nw_perk[ NW_PERK_DASH ] > 0 ) {
+		NeonWave_PerkFx( "dash" );
 	}
 
 	NW_SendStatus( NW_EV_RUNNING );

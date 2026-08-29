@@ -657,6 +657,19 @@ void weapon_railgun_fire (gentity_t *ent)
 	}
 	tent->s.clientNum = ent->s.clientNum;
 
+#ifdef NEONARENA_MOD
+	if ( g_gametype.integer == GT_NEONWAVE && ent->client
+			&& !( ent->r.svFlags & SVF_BOT )
+			&& NeonWave_PerkLevel( NW_PERK_PIERCE ) > 0 && hits >= 2 ) {
+		gentity_t *extra = G_TempEntity( trace.endpos, EV_RAILTRAIL );
+		extra->s.clientNum = ent->s.clientNum;
+		VectorCopy( tent->s.origin2, extra->s.origin2 );
+		extra->s.eventParm = 255;
+		G_Printf( "NeonWave: PIERCE multi-hit %i\n", hits );
+		NeonWave_PerkFx( "pierce" );
+	}
+#endif
+
 	// give the shooter a reward sound if they have made two railgun hits in a row
 	if ( hits == 0 ) {
 		// complete miss
