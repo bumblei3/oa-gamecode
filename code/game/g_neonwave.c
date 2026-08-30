@@ -63,6 +63,8 @@ static qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run
 static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
+static const char *NW_PerkName( int id );
+static int NW_PerkCap( int id );
 
 // ---- dynamic difficulty (v0.16): scale challenge to player performance ----
 // deaths push down, clean streak waves push up. Applied as boss HP multiplier.
@@ -262,6 +264,19 @@ void NeonWave_Reset( void ) {
 			nw_perk[pi] = 0;
 		}
 		nw_offer[0] = nw_offer[1] = nw_offer[2] = 0;
+	}
+	// v0.34 test hook: g_neonwave_perkr N grants rank-3 of perk N immediately
+	// (deterministic CI check that rank-scaled effects engage). Read once here.
+	{
+		char prBuf[8];
+		int pr;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_perkr", prBuf, sizeof(prBuf) );
+		pr = atoi( prBuf );
+		if ( pr >= 1 && pr < NW_PERK_COUNT ) {
+			nw_perk[pr] = NW_PerkCap( pr );
+			G_Printf( "NeonWave: PERK RANK FORCE %s -> rank %i\n",
+				NW_PerkName( pr ), nw_perk[pr] );
+		}
 	}
 	nw_waveStartTime = 0;
 	trap_Cvar_Set( "ui_neonwave_offers", "" );
@@ -768,10 +783,12 @@ static const char *NW_PerkName( int id ) {
 }
 
 static int NW_PerkCap( int id ) {
-	if ( id == NW_PERK_PIERCE || id == NW_PERK_CHAIN ) {
-		return 2;
+	// PIERCE/CHAIN/OVERCHARGE/DASH scale with rank (v0.34): up to rank 3.
+	if ( id == NW_PERK_PIERCE || id == NW_PERK_CHAIN
+		|| id == NW_PERK_OVERCHARGE || id == NW_PERK_DASH ) {
+		return 3;
 	}
-	return 1;
+	return 1; // SKIP / SECOND WIND are consumables
 }
 
 int NeonWave_PerkLevel( int perk ) {
@@ -896,7 +913,7 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", pts ) );
 	nw_offer[ slot - 1 ] = 0;
 	trap_Cvar_Set( "ui_neonwave_picked", va( "%i", slot ) );
-	G_Printf( "NeonWave: PERK TAKEN %s (stack %i, %i pts left)\n",
+	G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
 		NW_PerkName( id ), nw_perk[id], pts );
 	if ( ent && ent->client ) {
 		trap_SendServerCommand( ent - g_entities,
@@ -1166,12 +1183,14 @@ void NeonWave_StartWave( int num ) {
 	if ( nw_perk[ NW_PERK_OVERCHARGE ] > 0 ) {
 		char qBuf[8];
 		int qf, k;
+		int rank = nw_perk[ NW_PERK_OVERCHARGE ];
 		trap_Cvar_VariableStringBuffer( "g_quadfactor", qBuf, sizeof( qBuf ) );
 		qf = atoi( qBuf );
 		if ( qf < 3 ) {
 			qf = 3;
 		}
-		trap_Cvar_Set( "g_quadfactor", va( "%i", qf + 2 ) );
+		// rank-scaled: +2 per rank (rank 1 -> +2, rank 3 -> +6)
+		trap_Cvar_Set( "g_quadfactor", va( "%i", qf + 2 * rank ) );
 		for ( k = 0; k < level.maxclients; k++ ) {
 			gentity_t *p = &g_entities[k];
 			if ( !p->inuse || !p->client ) continue;
@@ -1183,7 +1202,7 @@ void NeonWave_StartWave( int num ) {
 			p->client->ps.stats[STAT_HEALTH] = p->health;
 		}
 		nw_perk[ NW_PERK_OVERCHARGE ]--;
-		G_Printf( "NeonWave: OVERCHARGE active (quadfactor %i)\n", qf + 2 );
+		G_Printf( "NeonWave: OVERCHARGE active (rank %i, quadfactor %i)\n", rank, qf + 2 * rank );
 		NeonWave_PerkFx( "overcharge" );
 		NW_MirrorPerks();
 	}
