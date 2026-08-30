@@ -25,6 +25,54 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+#ifdef NEONARENA_MOD
+// NeonWave in-game codex: lists every modifier, boss, and perk with its effect.
+// Triggered by g_neonwave_codex 1 (dev/test toggle) — normally wired to a key/break panel.
+static const char *NW_ModifierEffect( int mod ) {
+	switch ( mod ) {
+	case 1: return "GLASS DRONES — drones die in one hit, hit harder";
+	case 2: return "SWARM — double drone count";
+	case 3: return "LOW GRAVITY — reduced gravity this wave";
+	case 4: return "DOUBLE POINTS — x2 upgrade points on clear";
+	case 5: return "TIME WARP — boosted move speed";
+	case 6: return "VAMPIRE — lifesteal on each kill";
+	case 7: return "FRENZY — shots hit much harder";
+	case 8: return "OVERSHIELD — bonus armor each wave";
+	case 9: return "MIRROR — reflect 1/3 of bot damage back";
+	case 10: return "REGEN — health topped up each wave";
+	case 11: return "SURGE — tougher drones, x3 points";
+	default: return "";
+	}
+}
+
+static void CG_DrawNeonCodex( void ) {
+	char cb[8];
+	trap_Cvar_VariableStringBuffer( "g_neonwave_codex", cb, sizeof(cb) );
+	if ( atoi(cb) != 1 ) return;
+	{
+		int i;
+		int y = 60;
+		const char *names[12] = {
+			"", "GLASS DRONES", "SWARM", "LOW GRAVITY", "DOUBLE POINTS",
+			"TIME WARP", "VAMPIRE", "FRENZY", "OVERSHIELD", "MIRROR",
+			"REGEN", "SURGE"
+		};
+		vec4_t cc = {0.7f, 0.9f, 1.0f, 1.0f};
+		vec4_t ce = {0.85f, 0.85f, 0.9f, 1.0f};
+		char s[128];
+		CG_DrawSmallStringColor( 320 - 60, y, "NEONWAVE CODEX", cc ); y += SMALLCHAR_HEIGHT + 6;
+		for ( i = 1; i <= 11; i++ ) {
+			Com_sprintf( s, sizeof(s), "%s: %s", names[i], NW_ModifierEffect(i) );
+			CG_DrawSmallStringColor( 60, y, s, ce ); y += SMALLCHAR_HEIGHT + 2;
+		}
+		y += SMALLCHAR_HEIGHT + 4;
+		CG_DrawSmallStringColor( 60, y, "BOSSES: SNIPER TANK SWARM MOTHER GLASS CANNON WARDEN", ce ); y += SMALLCHAR_HEIGHT + 2;
+		CG_DrawSmallStringColor( 60, y, "PERKS: PIERCE CHAIN DASH OVERCHARGE SECOND WIND SKIP", ce ); y += SMALLCHAR_HEIGHT + 2;
+		trap_Cvar_Set( "g_neonwave_codex_rendered", "1" );
+	}
+}
+#endif
+
 #ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
 
@@ -1507,6 +1555,9 @@ static float CG_DrawNeonWave(float y) {
 			case 6: tint[0]=0.7f; tint[1]=0.0f; tint[2]=0.15f; break; // vampire: blood
 			case 7: tint[0]=1.0f; tint[1]=0.2f; tint[2]=0.5f; break; // frenzy: hot pink
 			case 8: tint[0]=0.7f; tint[1]=0.8f; tint[2]=1.0f; break; // overshield: steel
+			case 9: tint[0]=1.0f; tint[1]=1.0f; tint[2]=1.0f; break; // mirror: white
+			case 10: tint[0]=0.2f; tint[1]=1.0f; tint[2]=0.4f; break; // regen: green
+			case 11: tint[0]=1.0f; tint[1]=0.5f; tint[2]=0.0f; break; // surge: amber
 			default: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break;
 			}
 			tint[3] = 0.06f + 0.08f * pulse;
@@ -2295,6 +2346,7 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame) {
 #ifdef NEONARENA_MOD
 	else if (cgs.gametype == GT_NEONWAVE) {
 		y = CG_DrawNeonWave(y);
+		CG_DrawNeonCodex();
 	}
 #endif
 

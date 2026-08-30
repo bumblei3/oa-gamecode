@@ -31,7 +31,10 @@
 #define NW_MOD_VAMPIRE		6	// each kill heals the player a few HP (lifesteal)
 #define NW_MOD_FRENZY		7	// g_quadfactor boosted -> shots hit much harder
 #define NW_MOD_OVERSHIELD	8	// player granted bonus armor at wave start
-#define NW_MOD_POOL_SIZE	8
+#define NW_MOD_MIRROR		9	// bots' damage is partially reflected back on hit
+#define NW_MOD_REGEN		10	// player regenerates HP at the start of each wave
+#define NW_MOD_SURGE		11	// tougher drones but wave clear grants x3 upgrade points
+#define NW_MOD_POOL_SIZE	11
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -50,6 +53,7 @@ static qboolean nw_fcFired;
 static qboolean nw_failFired;
 static int nw_modifier = NW_MOD_NONE;
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
+static int nw_bossPhase = 1;		// boss phase (1 normal, 2 enraged after 50% hp)
 static int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
@@ -215,6 +219,7 @@ void NeonWave_Reset( void ) {
 	nw_aliveBots = 0;
 	nw_modifier = NW_MOD_NONE;
 	nw_bossType = 0;
+	nw_bossPhase = 1;
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
 	nw_difficulty = 0;
@@ -273,6 +278,8 @@ void NeonWave_Reset( void ) {
 	nw_over = qfalse;
 	nw_event = 0;
 	trap_Cvar_Set( "g_neonwave_upgradepoints", "0" );
+	// NOTE: do NOT reset g_neonwave_codex here — a +set at server start (test/dev
+	// hook) would be overwritten. It is read by NeonWave_Frame for the codex toggle.
 }
 
 qboolean NeonWave_IsBreak( void ) {
@@ -999,7 +1006,8 @@ static void NW_Autopick( void ) {
 static void NW_PickModifier( int num ) {
 	static const int pool[NW_MOD_POOL_SIZE] = {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
-		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD
+		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD,
+		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE
 	};
 	int idx;
 	int maxWave;
@@ -1016,9 +1024,9 @@ static void NW_PickModifier( int num ) {
 	if ( num < 5 || num >= maxWave ) {
 		return;
 	}
-	// test hook: g_neonwave_modifier N forces modifier 1-8
+	// test hook: g_neonwave_modifier N forces modifier 1-11
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_OVERSHIELD ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_SURGE ) {
 		nw_modifier = atoi( mbBuf );
 		return;
 	}
@@ -1034,6 +1042,8 @@ static void NW_PickModifier( int num ) {
 		idx += NW_MOD_POOL_SIZE;
 	}
 	nw_modifier = pool[idx];
+	// keep the active modifier readable from other translation units (MIRROR hook)
+	trap_Cvar_Set( "g_neonwave_modifier_active", va( "%i", nw_modifier ) );
 }
 
 static const char *NW_ModifierName( int mod ) {
@@ -1046,7 +1056,10 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_VAMPIRE:	return "VAMPIRE";
 	case NW_MOD_FRENZY:	return "FRENZY";
 	case NW_MOD_OVERSHIELD:	return "OVERSHIELD";
-	default:				return "";
+	case NW_MOD_MIRROR:		return "MIRROR";
+	case NW_MOD_REGEN:		return "REGEN";
+	case NW_MOD_SURGE:		return "SURGE";
+	default:			return "";
 	}
 }
 
@@ -1067,6 +1080,7 @@ void NeonWave_StartWave( int num ) {
 	nw_inBreak = qfalse;
 	nw_waveHadBots = qfalse;
 	nw_bossType = 0;
+	nw_bossPhase = 1;
 
 	// endless mode: past the classic max wave, keep scaling difficulty
 	trap_Cvar_VariableStringBuffer( "g_neonwave_maxwave", mwBuf, sizeof(mwBuf) );
@@ -1107,16 +1121,39 @@ void NeonWave_StartWave( int num ) {
 	}
 	// OVERSHIELD: grant bonus armor at the start of each wave (survivability)
 	if ( nw_modifier == NW_MOD_OVERSHIELD ) {
-	int k;
-	for ( k = 0; k < level.maxclients; k++ ) {
-	gentity_t *p = &g_entities[k];
-	if ( !p->inuse || !p->client ) continue;
-	if ( p->client->pers.connected != CON_CONNECTED ) continue;
-	if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-	if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
-	p->client->ps.stats[STAT_ARMOR] += 50;
+		int k;
+		for ( k = 0; k < level.maxclients; k++ ) {
+			gentity_t *p = &g_entities[k];
+			if ( !p->inuse || !p->client ) continue;
+			if ( p->client->pers.connected != CON_CONNECTED ) continue;
+			if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+			if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+			p->client->ps.stats[STAT_ARMOR] += 50;
+		}
+		G_Printf( "NeonWave: OVERSHIELD +50 armor granted\n" );
 	}
-	G_Printf( "NeonWave: OVERSHIELD +50 armor granted\n" );
+	// REGEN: top up player health at the start of each wave (sustained push)
+	if ( nw_modifier == NW_MOD_REGEN ) {
+		int k;
+		int maxh;
+		for ( k = 0; k < level.maxclients; k++ ) {
+			gentity_t *p = &g_entities[k];
+			if ( !p->inuse || !p->client ) continue;
+			if ( p->client->pers.connected != CON_CONNECTED ) continue;
+			if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+			if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+			maxh = p->client->ps.stats[STAT_MAX_HEALTH];
+			if ( p->health < maxh ) {
+				p->health = maxh;
+				p->client->ps.stats[STAT_HEALTH] = maxh;
+			}
+		}
+		G_Printf( "NeonWave: REGEN health topped up\n" );
+	}
+	// SURGE: tougher drones this wave (one notch harder skill); points handled in NW_GrantUpgradePoints
+	if ( nw_modifier == NW_MOD_SURGE ) {
+		if ( skill < 5 ) skill += 1;
+		G_Printf( "NeonWave: SURGE drones hardened\n" );
 	}
 	if ( nw_modifier == NW_MOD_GLASS && skill < 4 ) {
 	skill += 1; // glass drones are fast/aggressive
@@ -1186,6 +1223,10 @@ static void NW_GrantUpgradePoints( void ) {
 
 	if ( nw_modifier == NW_MOD_DOUBLEPTS ) {
 		gain *= 2;
+	}
+	if ( nw_modifier == NW_MOD_SURGE ) {
+		gain *= 3;
+		G_Printf( "NeonWave: SURGE x3 upgrade points\\n" );
 	}
 	// boss kill bonus: +3 for taking down a boss wave
 	if ( nw_wave % NW_BOSS_WAVE == 0 ) {
@@ -1486,6 +1527,7 @@ static void NW_GameOver( int event, const char *why ) {
 #define NW_BOSS_SHIELD_MS	4000	// tank shield phase duration
 #define NW_BOSS_SHIELD_CD	12000	// tank shield cooldown
 #define NW_BOSS_RAGE_HP		0.30f	// swarm mother rage below 30% hp
+#define NW_BOSS_PHASE2_HP	0.50f	// boss enters phase 2 below 50% hp
 
 static gentity_t *NW_FindBoss( void ) {
 	gentity_t *ent;
@@ -1500,7 +1542,64 @@ static gentity_t *NW_FindBoss( void ) {
 	return NULL;
 }
 
+// v0.33 boss phase 2: below 50% hp the boss escalates (see NW_BossEnterPhase2).
+// Test hook g_neonwave_phaseforce 1 forces the phase-2 trigger immediately so CI
+// can assert the ENTERS PHASE 2 marker deterministically (the natural low-hp
+// cross rarely happens in fast headless runs otherwise).
+static qboolean NW_BossInPhase2( gentity_t *boss, int maxhp ) {
+	char pfBuf[8];
+	trap_Cvar_VariableStringBuffer( "g_neonwave_phaseforce", pfBuf, sizeof(pfBuf) );
+	if ( atoi( pfBuf ) == 1 ) {
+		return qtrue;
+	}
+	return ( maxhp > 0 && boss->health < maxhp * NW_BOSS_PHASE2_HP ) ? qtrue : qfalse;
+}
+
+static void NW_BossEnterPhase2( void ) {
+	nw_bossPhase = 2;
+	switch ( nw_bossType ) {
+	case NW_BOSS_TANK:
+		G_Printf( "NeonWave: TANK ENTERS PHASE 2\n" );
+		break;
+	case NW_BOSS_SWARM:
+		G_Printf( "NeonWave: SWARM MOTHER ENTERS PHASE 2\n" );
+		break;
+	case NW_BOSS_GLASS:
+		G_Printf( "NeonWave: GLASS CANNON ENTERS PHASE 2\n" );
+		break;
+	case NW_BOSS_WARDEN:
+		G_Printf( "NeonWave: WARDEN ENTERS PHASE 2\n" );
+		break;
+	case NW_BOSS_SNIPER:
+		G_Printf( "NeonWave: SNIPER ENTERS PHASE 2\n" );
+		break;
+	default:
+		G_Printf( "NeonWave: BOSS ENTERS PHASE 2\n" );
+		break;
+	}
+}
+
+static void NW_CheckBossPhase2( void ) {
+	gentity_t *boss;
+	int maxhp;
+	if ( nw_bossPhase != 1 ) {
+		return; // already in phase 2
+	}
+	if ( nw_wave < NW_BOSS_WAVE ) {
+		return; // no boss yet
+	}
+	boss = NW_FindBoss();
+	if ( !boss ) {
+		return;
+	}
+	maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+	if ( NW_BossInPhase2( boss, maxhp ) ) {
+		NW_BossEnterPhase2();
+	}
+}
+
 static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
+	NW_CheckBossPhase2();
 	if ( nw_bossType == NW_BOSS_SWARM ) {
 		// swarm mother: keep spawning mini-drones while the boss lives;
 		// rage mode below 30% hp halves the spawn interval.
@@ -1521,13 +1620,19 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 				G_Printf( "NeonWave: SWARM MOTHER ENRAGED\n" );
 			}
 			// cap minidrones below sv_maxclients (24): wave 10 spawns 11
-				// drones + 1 boss = 12 clients, so the old hardcap of 10
-				// blocked every mini-drone spawn in headless CI runs
-				if ( level.time > *lastMini && bots < 20 ) {
-				*lastMini = level.time + ( rage ? 5000 : 10000 );
+			// drones + 1 boss = 12 clients, so the old hardcap of 10
+			// blocked every mini-drone spawn in headless CI runs
+			if ( level.time > *lastMini && bots < 20 ) {
+				// phase 2: spawn interval halved (more pressure)
+				int spawnCd = ( rage ? 5000 : 10000 );
+				if ( nw_bossPhase == 2 ) {
+					spawnCd /= 2;
+				}
+				*lastMini = level.time + spawnCd;
 				NW_SpawnBot( 3 );
-				G_Printf( "NeonWave: swarm mother spawns mini-drone%s\n",
-					rage ? " (RAGE)" : "" );
+				G_Printf( "NeonWave: swarm mother spawns mini-drone%s%s\n",
+					rage ? " (RAGE)" : "",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
 			}
 			return;
 		}
@@ -1537,15 +1642,23 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		// tank: periodic regeneration burst while "shielded" (visualized by
 		// the boss glow pulse); implemented as self-heal to avoid touching
 		// G_Damage — keeps all boss logic inside g_neonwave.c
+		// phase 2: shield cycles more often and last longer (steady regen pressure)
 		static int nextShield;
 		gentity_t *boss = NW_FindBoss();
 		if ( boss ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+			int shieldMs = NW_BOSS_SHIELD_MS;
+			int shieldCd = NW_BOSS_SHIELD_CD;
+			if ( nw_bossPhase == 2 ) {
+				shieldMs = NW_BOSS_SHIELD_MS + 1000;
+				shieldCd = NW_BOSS_SHIELD_CD - 4000;
+			}
 			if ( !boss->client->pers.neonwaveBossShield && level.time > nextShield ) {
 				boss->client->pers.neonwaveBossShield = 1;
-				boss->client->pers.neonwaveBossShieldEnd = level.time + NW_BOSS_SHIELD_MS;
-				nextShield = level.time + NW_BOSS_SHIELD_CD;
-				G_Printf( "NeonWave: TANK raises SHIELD\n" );
+				boss->client->pers.neonwaveBossShieldEnd = level.time + shieldMs;
+				nextShield = level.time + shieldCd;
+				G_Printf( "NeonWave: TANK raises SHIELD%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
 			}
 			if ( boss->client->pers.neonwaveBossShield ) {
 				if ( level.time > boss->client->pers.neonwaveBossShieldEnd ) {
@@ -1576,7 +1689,8 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		trap_Cvar_VariableStringBuffer( "g_neonwave_wardenforce", wfBuf, sizeof(wfBuf) );
 		forcedStrike = atoi( wfBuf );
 		if ( level.time > nextStrike || forcedStrike == 1 ) {
-			nextStrike = level.time + 8000;
+			// phase 2: strikes come more often (5000 instead of 8000)
+			nextStrike = level.time + ( nw_bossPhase == 2 ? 5000 : 8000 );
 			// nearest connected human (or bot carrier under botasplayer)
 			for ( i = 0; i < level.maxclients && !player; i++ ) {
 				gentity_t *e = &g_entities[i];
@@ -1616,7 +1730,8 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		gentity_t *boss = NW_FindBoss();
 		if ( boss && level.time > lastDash ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
-			lastDash = level.time + 9000;
+			// phase 2: repositions more often (6000 instead of 9000)
+			lastDash = level.time + ( nw_bossPhase == 2 ? 6000 : 9000 );
 			{
 				char pctBuf[8];
 				int pct;
@@ -1626,7 +1741,7 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 					boss->health = maxhp * pct / 100; // force low-hp state for tests
 				}
 			}
-			if ( maxhp > 0 && boss->health < maxhp / 2 ) {
+			if ( maxhp > 0 && ( nw_bossPhase == 2 || boss->health < maxhp / 2 ) ) {
 				vec3_t org = { 0, 0, 0 };
 				VectorCopy( boss->r.currentOrigin, org );
 				// dash: small random offset teleport
@@ -1634,8 +1749,22 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 				org[1] += ( rand() % 400 ) - 200;
 				VectorCopy( org, boss->s.origin );
 				VectorCopy( org, boss->client->ps.origin );
-				G_Printf( "NeonWave: SNIPER dashes to new position\n" );
+				G_Printf( "NeonWave: SNIPER dashes to new position%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
 			}
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_GLASS ) {
+		// glass cannon: fragile but deadly. Phase 2 makes it deadlier by
+		// spawning supporting mini-drones (it can't out-tank the player, so
+		// it floods the field instead) — a distinct, testable escalation.
+		static int nextGlassMini;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss && nw_bossPhase == 2 && level.time > nextGlassMini && bots < 20 ) {
+			nextGlassMini = level.time + 7000;
+			NW_SpawnBot( 3 );
+			G_Printf( "NeonWave: GLASS CANNON summons support drone (PHASE 2)\n" );
 		}
 	}
 }
@@ -1675,6 +1804,16 @@ void NeonWave_Frame( void ) {
 
 	if ( g_gametype.integer != GT_NEONWAVE ) {
 		return;
+	}
+	// codex/bestiary toggle: mirror the cvar state so headless tests can assert
+	// the trigger fired (the actual HUD panel is drawn client-side in cg_draw.c)
+	{
+		char codexBuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_codex", codexBuf, sizeof(codexBuf) );
+		if ( atoi(codexBuf) == 1 ) {
+			trap_Cvar_Set( "g_neonwave_codex_rendered", "1" );
+			G_Printf( "NeonWave: CODEX rendered\n" );
+		}
 	}
 	if ( level.intermissiontime || level.intermissionQueued ) {
 		return;

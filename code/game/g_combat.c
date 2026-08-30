@@ -1129,6 +1129,26 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 	client = targ->client;
 
+	// NeonWave: MIRROR modifier — reflect a fraction of bot->human damage back on the attacker
+	if ( g_gametype.integer == GT_NEONWAVE
+			&& attacker && attacker->client && ( attacker->r.svFlags & SVF_BOT )
+			&& targ->client && !( targ->r.svFlags & SVF_BOT )
+			&& attacker != targ ) {
+		char nwModBuf[8];
+		int nwMod;
+		int reflect;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_modifier_active", nwModBuf, sizeof(nwModBuf) );
+		nwMod = atoi( nwModBuf );
+		if ( nwMod == 9 ) { // NW_MOD_MIRROR
+			reflect = damage / 3;
+			if ( reflect > 0 && attacker->takedamage && attacker->health > 0 ) {
+				attacker->health -= reflect;
+				if ( attacker->health < 1 ) attacker->health = 1;
+				attacker->client->ps.stats[STAT_HEALTH] = attacker->health;
+				G_Printf( "NeonWave: MIRROR reflects %i to drone\n", reflect );
+			}
+		}
+	}
 	if ( !inflictor ) {
 		inflictor = &g_entities[ENTITYNUM_WORLD];
 	}
