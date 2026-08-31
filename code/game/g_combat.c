@@ -1129,17 +1129,19 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 	client = targ->client;
 
-	// NeonWave: MIRROR modifier — reflect a fraction of bot->human damage back on the attacker
+	// NeonWave: MIRROR modifier — reflect a fraction of bot->human damage back on the attacker.
+	// g_neonwave_modifier_active is a bitmask (bit N => modifier N active), so MIRROR
+	// works in either slot (v0.35 second modifier slot too).
 	if ( g_gametype.integer == GT_NEONWAVE
 			&& attacker && attacker->client && ( attacker->r.svFlags & SVF_BOT )
 			&& targ->client && !( targ->r.svFlags & SVF_BOT )
 			&& attacker != targ ) {
 		char nwModBuf[8];
-		int nwMod;
+		int nwModMask;
 		int reflect;
 		trap_Cvar_VariableStringBuffer( "g_neonwave_modifier_active", nwModBuf, sizeof(nwModBuf) );
-		nwMod = atoi( nwModBuf );
-		if ( nwMod == 9 ) { // NW_MOD_MIRROR
+		nwModMask = atoi( nwModBuf );
+		if ( nwModMask & ( 1 << 9 ) ) { // bit 9 = NW_MOD_MIRROR
 			reflect = damage / 3;
 			if ( reflect > 0 && attacker->takedamage && attacker->health > 0 ) {
 				attacker->health -= reflect;

@@ -1023,6 +1023,20 @@ static void NW_Autopick( void ) {
 	NeonWave_BuyOffer( NULL, slot );
 }
 
+// Publish the active modifier(s) to a cvar bitmask so g_combat.c (MIRROR reflect
+// hook) sees MIRROR regardless of which slot it landed in. Call before every
+// NW_PickModifier return path — the force/skip branches used to skip this.
+static void NW_PublishModifiers( void ) {
+	int nwActiveMask = 0;
+	if ( nw_modifier != NW_MOD_NONE )  nwActiveMask |= ( 1 << nw_modifier );
+	if ( nw_modifier2 != NW_MOD_NONE ) nwActiveMask |= ( 1 << nw_modifier2 );
+	trap_Cvar_Set( "g_neonwave_modifier_active", va( "%i", nwActiveMask ) );
+	if ( nwActiveMask & ( 1 << NW_MOD_MIRROR ) ) {
+		G_Printf( "NeonWave: MIRROR active (mask %i, slot2=%i)\n",
+			nwActiveMask, ( nw_modifier2 == NW_MOD_MIRROR ) ? 1 : 0 );
+	}
+}
+
 static void NW_PickModifier( int num ) {
 	static const int pool[NW_MOD_POOL_SIZE] = {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
@@ -1046,15 +1060,18 @@ static void NW_PickModifier( int num ) {
 	if ( num < 5 || num >= maxWave ) {
 		return;
 	}
-	// test hook: g_neonwave_modifier N forces modifier 1-11
+	// test hooks (v0.35): g_neonwave_modifier N forces slot 1, g_neonwave_modifier2 N
+	// forces slot 2. Each works independently so MIRROR can be forced in either slot.
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
 	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_SURGE ) {
 		nw_modifier = atoi( mbBuf );
-		// v0.35 test hook: g_neonwave_modifier2 N forces the second slot
-		trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof(mb2Buf) );
-		if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_SURGE ) {
-			nw_modifier2 = atoi( mb2Buf );
-		}
+	}
+	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof(mb2Buf) );
+	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_SURGE ) {
+		nw_modifier2 = atoi( mb2Buf );
+	}
+	if ( nw_modifier != NW_MOD_NONE || nw_modifier2 != NW_MOD_NONE ) {
+		NW_PublishModifiers();
 		NW_ApplySynergy();
 		return;
 	}
@@ -1063,6 +1080,7 @@ static void NW_PickModifier( int num ) {
 		nw_modifier = NW_MOD_NONE;
 		G_Printf( "NeonWave: SKIP modifier\n" );
 		NW_MirrorPerks();
+		NW_PublishModifiers();
 		return;
 	}
 	idx = ( num - 5 + nw_dailyOffset ) % NW_MOD_POOL_SIZE;
@@ -1078,8 +1096,9 @@ static void NW_PickModifier( int num ) {
 			nw_modifier2 = pool[( idx2 + 1 ) % NW_MOD_POOL_SIZE];
 		}
 	}
-	// keep the active modifier readable from other translation units (MIRROR hook)
-	trap_Cvar_Set( "g_neonwave_modifier_active", va( "%i", nw_modifier ) );
+	// publish active modifiers (bitmask cvar) for the MIRROR reflect hook in g_combat.c.
+	// Covers both slots (v0.35 second modifier).
+	NW_PublishModifiers();
 	NW_ApplySynergy();
 }
 
