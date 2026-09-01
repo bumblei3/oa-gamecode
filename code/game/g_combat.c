@@ -529,6 +529,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			attacker->client->pers.nwBestCombo = attacker->client->nwCombo;
 		}
 		NeonWave_TrackRunCombo( attacker->client->nwCombo );
+		NeonWave_OnDroneKill( attacker );
 	}
 	// NeonWave dynamic difficulty: human death counter
 	if ( g_gametype.integer == GT_NEONWAVE
@@ -1142,7 +1143,16 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		trap_Cvar_VariableStringBuffer( "g_neonwave_modifier_active", nwModBuf, sizeof(nwModBuf) );
 		nwModMask = atoi( nwModBuf );
 		if ( nwModMask & ( 1 << 9 ) ) { // bit 9 = NW_MOD_MIRROR
-			reflect = damage / 3;
+			char divBuf[8];
+			int div = 3;
+			trap_Cvar_VariableStringBuffer( "g_neonwave_mirrordiv", divBuf, sizeof( divBuf ) );
+			if ( divBuf[0] ) {
+				div = atoi( divBuf );
+			}
+			if ( div < 2 ) {
+				div = 3;
+			}
+			reflect = damage / div;
 			if ( reflect > 0 && attacker->takedamage && attacker->health > 0 ) {
 				attacker->health -= reflect;
 				if ( attacker->health < 1 ) attacker->health = 1;

@@ -61,12 +61,18 @@ static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
 static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
 static qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run, run-stats JSON
+static qboolean nw_dailyActive;	// daily challenge (same seed = same run for everyone)
+static int nw_synergyIdx = -1;	// v0.37: index into nwSynergies, -1 = none
+static int nw_ptsMul = 1;		// v0.37: wave-clear point multiplier (DOUBLEPTS/SURGE/AERIAL)
+static int nw_lastSeenDeaths = -1;	// dynamic difficulty: deaths at last wave clear
 static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
 static const char *NW_PerkName( int id );
 static int NW_PerkCap( int id );
 static void NW_ApplySynergy( void );
+static qboolean NW_ModActive( int mod );
+static qboolean NW_DifficultyLocked( void );
 
 // ---- dynamic difficulty (v0.16): scale challenge to player performance ----
 // deaths push down, clean streak waves push up. Applied as boss HP multiplier.
@@ -79,9 +85,16 @@ static const char *NW_DifficultyName( int d ) {
 	}
 }
 
+// Daily and Hardcore must be the same challenge for every player / the
+// whole run. Adaptive difficulty would desync Daily seeds and soften Hardcore.
+static qboolean NW_DifficultyLocked( void ) {
+	return ( nw_dailyActive || nw_hardcore ) ? qtrue : qfalse;
+}
+
 // called on every human death; two quick deaths soften the run
 void NeonWave_OnPlayerDeath( struct gclient_s *client ) {
 	if ( g_gametype.integer != GT_NEONWAVE ) return;
+	if ( NW_DifficultyLocked() ) return;
 	if ( client->nwDeaths > 0 && client->nwDeaths % 2 == 0 && nw_difficulty > -2 ) {
 		nw_difficulty--;
 		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
@@ -91,15 +104,18 @@ void NeonWave_OnPlayerDeath( struct gclient_s *client ) {
 
 // called at wave clear; a wave cleared without dying since last clear hardens
 static void NW_UpdateDifficultyOnClear( void ) {
-	static int lastSeenDeaths = -1;
-	int deathsNow = NW_RunDeaths();
-	if ( deathsNow == lastSeenDeaths && nw_difficulty < 1 ) {
+	int deathsNow;
+	if ( NW_DifficultyLocked() ) {
+		return;
+	}
+	deathsNow = NW_RunDeaths();
+	if ( deathsNow == nw_lastSeenDeaths && nw_difficulty < 1 ) {
 		// wave cleared without dying since the last clear -> harder
 		nw_difficulty++;
 		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
 		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\\n\"", NW_DifficultyName( nw_difficulty ) ) );
 	}
-	lastSeenDeaths = deathsNow;
+	nw_lastSeenDeaths = deathsNow;
 }
 
 // total human deaths this run
@@ -152,7 +168,6 @@ static int nw_fxSeq;
 // a boss rotation offset and modifier rotation offset, so every player gets
 // the same boss/modifier sequence on the same day. Enable via
 // g_neonwave_daily 1 (or force a seed with g_neonwave_dailyseed N for tests).
-static qboolean nw_dailyActive;
 static int nw_dailyOffset;		// modifier pool rotation 0..(NW_MOD_POOL_SIZE-1)
 static int nw_dailyBossOffset;	// boss rotation offset 0..(NW_BOSS_COUNT-1)
 
@@ -228,6 +243,9 @@ void NeonWave_Reset( void ) {
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
 	nw_difficulty = 0;
+	nw_lastSeenDeaths = -1;
+	nw_synergyIdx = -1;
+	nw_ptsMul = 1;
 	nw_modifiersSeen = 0;
 	{
 		int ai;
@@ -292,6 +310,10 @@ void NeonWave_Reset( void ) {
 	NW_LoadAchievements();
 	if ( nw_dailyActive ) {
 		NW_LoadDailyRecords();
+	}
+	if ( NW_DifficultyLocked() ) {
+		G_Printf( "NeonWave: dynamic difficulty locked (daily=%i hardcore=%i)\n",
+			nw_dailyActive ? 1 : 0, nw_hardcore ? 1 : 0 );
 	}
 	nw_over = qfalse;
 	nw_event = 0;
@@ -1051,6 +1073,12 @@ static void NW_PickModifier( int num ) {
 
 	nw_modifier = NW_MOD_NONE;
 	nw_modifier2 = NW_MOD_NONE;
+	nw_synergyIdx = -1;
+	nw_ptsMul = 1;
+	trap_Cvar_Set( "ui_neonwave_synergy", "" );
+	trap_Cvar_Set( "ui_neonwave_synergyanti", "0" );
+	trap_Cvar_Set( "g_neonwave_vampheal", "0" );
+	trap_Cvar_Set( "g_neonwave_mirrordiv", "3" );
 	trap_Cvar_VariableStringBuffer( "g_neonwave_maxwave", mwBuf, sizeof(mwBuf) );
 	maxWave = atoi( mwBuf );
 	if ( maxWave <= 0 ) {
@@ -1119,11 +1147,12 @@ static const char *NW_ModifierName( int mod ) {
 	}
 }
 
-// v0.35: modifier synergy / anti-synergy. Two modifiers on a wave can combine
-// into a named effect (bonus) or clash (penalty). Implemented as loggable markers
-// + a small mechanical nudge so headless CI can assert the SYNERGY / ANTI-SYNERGY
-// line deterministically. Kept self-contained here so all modifier pairing logic
-// lives in one place.
+static qboolean NW_ModActive( int mod ) {
+	return ( nw_modifier == mod || nw_modifier2 == mod ) ? qtrue : qfalse;
+}
+
+// v0.35: named pairs. v0.37: each pair also nudges cvars / heal / reflect
+// so the second slot is visible in play, not just a log line.
 typedef struct {
 	int a;
 	int b;
@@ -1144,6 +1173,9 @@ static const nwSynergy_t nwSynergies[] = {
 
 static void NW_ApplySynergy( void ) {
 	int i;
+	nw_synergyIdx = -1;
+	trap_Cvar_Set( "ui_neonwave_synergy", "" );
+	trap_Cvar_Set( "ui_neonwave_synergyanti", "0" );
 	if ( nw_modifier2 == NW_MOD_NONE ) {
 		return; // no second modifier -> nothing to pair
 	}
@@ -1153,6 +1185,9 @@ static void NW_ApplySynergy( void ) {
 		qboolean match = ( ( nw_modifier == a && nw_modifier2 == b )
 			|| ( nw_modifier == b && nw_modifier2 == a ) );
 		if ( match ) {
+			nw_synergyIdx = i;
+			trap_Cvar_Set( "ui_neonwave_synergy", nwSynergies[i].name );
+			trap_Cvar_Set( "ui_neonwave_synergyanti", nwSynergies[i].anti ? "1" : "0" );
 			if ( nwSynergies[i].anti ) {
 				G_Printf( "NeonWave: ANTI-SYNERGY %s (%s + %s)\n",
 					nwSynergies[i].name,
@@ -1206,40 +1241,81 @@ void NeonWave_StartWave( int num ) {
 		if ( skill < 5 ) skill += 1;
 	}
 
-	// apply modifier side effects (slot 1 AND slot 2 both apply)
-	if ( nw_modifier == NW_MOD_LOWGRAV || nw_modifier2 == NW_MOD_LOWGRAV ) {
-	trap_Cvar_Set( "g_gravity", "400" ); // half of default 800
-	} else {
-	trap_Cvar_Set( "g_gravity", "800" );
-	}
-	// TIME WARP: scale player movement speed for the wave (engine g_speed cvar)
-	if ( nw_modifier == NW_MOD_TIMEWARP || nw_modifier2 == NW_MOD_TIMEWARP ) {
-	trap_Cvar_Set( "g_speed", "520" ); // ~1.6x of default 320
-	} else {
-	trap_Cvar_Set( "g_speed", "320" );
-	}
-	// FRENZY: boost damage dealt (g_quadfactor raises the Quad-style multiplier)
-	if ( nw_modifier == NW_MOD_FRENZY || nw_modifier2 == NW_MOD_FRENZY ) {
-	trap_Cvar_Set( "g_quadfactor", "4" ); // default 3 -> harder hits
-	G_Printf( "NeonWave: FRENZY quadfactor set to 4\n" );
-	} else {
-	trap_Cvar_Set( "g_quadfactor", "3" );
-	}
-	// OVERSHIELD: grant bonus armor at the start of each wave (survivability)
-	if ( nw_modifier == NW_MOD_OVERSHIELD || nw_modifier2 == NW_MOD_OVERSHIELD ) {
-		int k;
-		for ( k = 0; k < level.maxclients; k++ ) {
-			gentity_t *p = &g_entities[k];
-			if ( !p->inuse || !p->client ) continue;
-			if ( p->client->pers.connected != CON_CONNECTED ) continue;
-			if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-			if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
-			p->client->ps.stats[STAT_ARMOR] += 50;
+	// apply modifier side effects (slot 1 AND slot 2 both apply), then
+	// named-pair synergy nudges so the second slot is actually felt.
+	{
+		int grav = 800, speed = 320, qf = 3, armor = 0, vampheal = 0, mirrordiv = 3;
+		if ( NW_ModActive( NW_MOD_LOWGRAV ) ) {
+			grav = 400; // half of default 800
 		}
-		G_Printf( "NeonWave: OVERSHIELD +50 armor granted\n" );
+		if ( NW_ModActive( NW_MOD_TIMEWARP ) ) {
+			speed = 520; // ~1.6x of default 320
+		}
+		if ( NW_ModActive( NW_MOD_FRENZY ) ) {
+			qf = 4;
+		}
+		if ( NW_ModActive( NW_MOD_OVERSHIELD ) ) {
+			armor = 50;
+		}
+		if ( NW_ModActive( NW_MOD_VAMPIRE ) ) {
+			vampheal = 4;
+		}
+		if ( NW_ModActive( NW_MOD_MIRROR ) ) {
+			mirrordiv = 3;
+		}
+		nw_ptsMul = 1;
+		if ( NW_ModActive( NW_MOD_DOUBLEPTS ) ) {
+			nw_ptsMul = 2;
+		}
+		if ( NW_ModActive( NW_MOD_SURGE ) ) {
+			nw_ptsMul *= 3;
+		}
+		// v0.37 named-pair nudges (indices match nwSynergies[])
+		if ( nw_synergyIdx == 0 ) { // AERIAL ASSAULT: lower grav, x3 points
+			grav = 280;
+			nw_ptsMul = 3;
+			G_Printf( "NeonWave: SYNERGY EFFECT AERIAL ASSAULT: gravity 280, points x3\n" );
+		} else if ( nw_synergyIdx == 1 ) { // BLOOD WELL: double lifesteal
+			vampheal = 8;
+			G_Printf( "NeonWave: SYNERGY EFFECT BLOOD WELL: lifesteal 8\n" );
+		} else if ( nw_synergyIdx == 2 ) { // OVERDRIVE: harder hits
+			qf = 6;
+			G_Printf( "NeonWave: SYNERGY EFFECT OVERDRIVE: quadfactor 6\n" );
+		} else if ( nw_synergyIdx == 3 ) { // HIVE MIRROR: stronger reflect
+			mirrordiv = 2;
+			G_Printf( "NeonWave: SYNERGY EFFECT HIVE MIRROR: reflect 1/2\n" );
+		} else if ( nw_synergyIdx == 4 ) { // SHIELD BLEED: weaker defense + heal
+			armor = 25;
+			vampheal = 2;
+			G_Printf( "NeonWave: ANTI-SYNERGY EFFECT SHIELD BLEED: overshield 25, lifesteal 2\n" );
+		} else if ( nw_synergyIdx == 5 ) { // DRIFT LOCK: clamped movement
+			grav = 600;
+			speed = 400;
+			G_Printf( "NeonWave: ANTI-SYNERGY EFFECT DRIFT LOCK: speed 400, gravity 600\n" );
+		}
+		trap_Cvar_Set( "g_gravity", va( "%i", grav ) );
+		trap_Cvar_Set( "g_speed", va( "%i", speed ) );
+		trap_Cvar_Set( "g_quadfactor", va( "%i", qf ) );
+		trap_Cvar_Set( "g_neonwave_vampheal", va( "%i", vampheal ) );
+		trap_Cvar_Set( "g_neonwave_mirrordiv", va( "%i", mirrordiv ) );
+		if ( NW_ModActive( NW_MOD_FRENZY ) ) {
+			G_Printf( "NeonWave: FRENZY quadfactor set to %i\n", qf );
+		}
+		if ( armor > 0 ) {
+			int k;
+			for ( k = 0; k < level.maxclients; k++ ) {
+				gentity_t *p = &g_entities[k];
+				if ( !p->inuse || !p->client ) continue;
+				if ( p->client->pers.connected != CON_CONNECTED ) continue;
+				if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+				if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+				p->client->ps.stats[STAT_ARMOR] += armor;
+			}
+			G_Printf( "NeonWave: OVERSHIELD +%i armor granted\n", armor );
+		}
 	}
 	// REGEN: top up player health at the start of each wave (sustained push)
-	if ( nw_modifier == NW_MOD_REGEN || nw_modifier2 == NW_MOD_REGEN ) {
+	if ( NW_ModActive( NW_MOD_REGEN ) ) {
 		int k;
 		int maxh;
 		for ( k = 0; k < level.maxclients; k++ ) {
@@ -1257,15 +1333,15 @@ void NeonWave_StartWave( int num ) {
 		G_Printf( "NeonWave: REGEN health topped up\n" );
 	}
 	// SURGE: tougher drones this wave (one notch harder skill); points handled in NW_GrantUpgradePoints
-	if ( nw_modifier == NW_MOD_SURGE || nw_modifier2 == NW_MOD_SURGE ) {
+	if ( NW_ModActive( NW_MOD_SURGE ) ) {
 		if ( skill < 5 ) skill += 1;
 		G_Printf( "NeonWave: SURGE drones hardened\n" );
 	}
-	if ( nw_modifier == NW_MOD_GLASS && skill < 4 ) {
-	skill += 1; // glass drones are fast/aggressive
+	if ( NW_ModActive( NW_MOD_GLASS ) && skill < 4 ) {
+		skill += 1; // glass drones are fast/aggressive
 	}
-	if ( nw_modifier == NW_MOD_SWARM || nw_modifier2 == NW_MOD_SWARM ) {
-	botCount *= 2;
+	if ( NW_ModActive( NW_MOD_SWARM ) ) {
+		botCount *= 2;
 	}
 
 	nw_waveStartTime = level.time;
@@ -1300,7 +1376,11 @@ void NeonWave_StartWave( int num ) {
 	}
 
 	NW_SendStatus( NW_EV_RUNNING );
-	if ( nw_modifier != NW_MOD_NONE ) {
+	if ( nw_synergyIdx >= 0 ) {
+		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s + %s\\n%s\"",
+			num, NW_ModifierName( nw_modifier ), NW_ModifierName( nw_modifier2 ),
+			nwSynergies[nw_synergyIdx].name ) );
+	} else if ( nw_modifier != NW_MOD_NONE ) {
 		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s\n\"", num, NW_ModifierName( nw_modifier ) ) );
 	} else {
 		trap_SendServerCommand( -1, va( "cp \"WAVE %i\n\"", num ) );
@@ -1331,12 +1411,14 @@ static void NW_GrantUpgradePoints( void ) {
 	int gain = ( nw_wave >= NW_BOSS_WAVE ? 2 : 1 );
 	int combo;
 
-	if ( nw_modifier == NW_MOD_DOUBLEPTS ) {
-		gain *= 2;
-	}
-	if ( nw_modifier == NW_MOD_SURGE ) {
-		gain *= 3;
-		G_Printf( "NeonWave: SURGE x3 upgrade points\\n" );
+	if ( nw_ptsMul > 1 ) {
+		gain *= nw_ptsMul;
+		if ( NW_ModActive( NW_MOD_SURGE ) && nw_synergyIdx != 0 ) {
+			G_Printf( "NeonWave: SURGE x3 upgrade points\\n" );
+		}
+		if ( nw_synergyIdx == 0 ) {
+			G_Printf( "NeonWave: AERIAL ASSAULT x3 upgrade points\n" );
+		}
 	}
 	// boss kill bonus: +3 for taking down a boss wave
 	if ( nw_wave % NW_BOSS_WAVE == 0 ) {
@@ -1392,7 +1474,7 @@ static void NW_EnterBreak( void ) {
 	nw_inBreak = qtrue;
 	// restore gravity after low-grav wave; log it so headless tests can assert
 	// that the modifier side effect is properly undone
-	if ( nw_modifier == NW_MOD_LOWGRAV ) {
+	if ( NW_ModActive( NW_MOD_LOWGRAV ) ) {
 		trap_Cvar_Set( "g_gravity", "800" );
 		G_Printf( "NeonWave: gravity restored to 800\\n" );
 	}
@@ -1897,14 +1979,40 @@ static gentity_t *NW_VampireHealTarget( void ) {
 }
 
 static void NW_VampireHeal( gentity_t *t ) {
-	#define NW_VAMPIRE_HEAL 4
-	int nh = t->client->ps.stats[STAT_HEALTH] + NW_VAMPIRE_HEAL;
+	char buf[8];
+	int heal = 4;
+	int nh;
+	trap_Cvar_VariableStringBuffer( "g_neonwave_vampheal", buf, sizeof( buf ) );
+	if ( buf[0] ) {
+		heal = atoi( buf );
+	}
+	if ( heal <= 0 ) {
+		heal = 4;
+	}
+	nh = t->client->ps.stats[STAT_HEALTH] + heal;
 	if ( nh > t->client->ps.stats[STAT_MAX_HEALTH] )
 		nh = t->client->ps.stats[STAT_MAX_HEALTH];
 	t->client->ps.stats[STAT_HEALTH] = nh;
 	t->health = nh;
-	G_Printf( "NeonWave: VAMPIRE lifesteal +%i (hp %i)\n", NW_VAMPIRE_HEAL, nh );
-	#undef NW_VAMPIRE_HEAL
+	G_Printf( "NeonWave: VAMPIRE lifesteal +%i (hp %i)\n", heal, nh );
+}
+
+void NeonWave_OnDroneKill( gentity_t *attacker ) {
+	gentity_t *t;
+	if ( g_gametype.integer != GT_NEONWAVE ) {
+		return;
+	}
+	if ( !NW_ModActive( NW_MOD_VAMPIRE ) ) {
+		return;
+	}
+	t = attacker;
+	if ( !t || !t->client || t->health <= 0
+			|| ( ( t->r.svFlags & SVF_BOT ) && !NW_TestPlayerSkipBots() ) ) {
+		t = NW_VampireHealTarget();
+	}
+	if ( t && t->health > 0 ) {
+		NW_VampireHeal( t );
+	}
 }
 
 void NeonWave_Frame( void ) {
@@ -2003,7 +2111,7 @@ void NeonWave_Frame( void ) {
 			trap_Cvar_VariableStringBuffer( "g_neonwave_autokill", akBuf, sizeof(akBuf) );
 			if ( atoi( akBuf ) == 1 ) {
 				gentity_t *heal = NULL;
-				if ( nw_modifier == NW_MOD_VAMPIRE ) {
+				if ( NW_ModActive( NW_MOD_VAMPIRE ) ) {
 					heal = NW_VampireHealTarget();
 				}
 				for ( i = 0; i < level.maxclients; i++ ) {

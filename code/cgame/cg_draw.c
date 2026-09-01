@@ -1502,6 +1502,23 @@ static float CG_DrawNeonWave(float y) {
 			y += SMALLCHAR_HEIGHT + 4;
 		}
 	}
+	{
+		char synbuf[32];
+		char antibuf[8];
+		synbuf[0] = 0;
+		trap_Cvar_VariableStringBuffer("ui_neonwave_synergy", synbuf, sizeof(synbuf));
+		if (synbuf[0] && ev == 0) {
+			vec4_t scol = {0.4f, 1.0f, 0.7f, 1.0f};
+			trap_Cvar_VariableStringBuffer("ui_neonwave_synergyanti", antibuf, sizeof(antibuf));
+			if (atoi(antibuf) == 1) {
+				scol[0] = 1.0f; scol[1] = 0.35f; scol[2] = 0.35f;
+			}
+			Com_sprintf(s, sizeof(s), "%s", synbuf);
+			w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+			CG_DrawSmallStringColor(320 - w/2, y, s, scol);
+			y += SMALLCHAR_HEIGHT + 4;
+		}
+	}
 
 	// live combo popup: field 12 of the payload; shows while a streak of 2+
 	// is hot (3s window maintained by g_combat.c)
