@@ -215,9 +215,21 @@ static void NW_DailyInit( void ) {
 	nw_dailyOffset = forced % NW_MOD_POOL_SIZE;
 	nw_dailyBossOffset = ( forced / NW_MOD_POOL_SIZE ) % NW_BOSS_COUNT;
 	{
-		static const char *pool[3] = { "oa_shine", "oa_minia", "oa_rpg3dm2" };
-		int mi = ( forced / ( NW_MOD_POOL_SIZE * NW_BOSS_COUNT ) ) % 3;
-		G_Printf( "NeonWave: DAILY MAP %s\n", pool[mi] );
+		// Map pool — extend array to grow the daily rotation.
+		// Modulo uses sizeof so adding entries requires no other edits.
+		static const char *pool[] = {
+			"oa_shine",   // 0 — Shine (default, dark skybox, neon grid)
+			"oa_minia",   // 1 — Minia (compact, fast spawns)
+			"oa_rpg3dm2", // 2 — RPG 3DM2 (open sightlines)
+			"oa_bleed",   // 3 — Bleed (corridors, close combat)
+			"oa_node",    // 4 — Node (multi-level)
+			"oa_pulse",   // 5 — Pulse (wide arena)
+			"oa_desert",  // 6 — Desert (open, less bloom needed)
+			"oa_vortex"   // 7 — Vortex (vertical gameplay)
+		};
+		int map_count = sizeof( pool ) / sizeof( pool[0] );
+		int mi = ( forced / ( NW_MOD_POOL_SIZE * NW_BOSS_COUNT ) ) % map_count;
+		G_Printf( "NeonWave: DAILY MAP %s (pool index %i/%i)\n", pool[mi], mi, map_count );
 		trap_Cvar_Set( "ui_neonwave_dailymap", pool[mi] );
 	}
 	// mirror for the cgame HUD (DAILY badge on the wave title)
