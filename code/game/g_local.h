@@ -917,7 +917,7 @@ void NeonWave_RefreshStatus( void );
 #define NW_PERK_SECONDWIND	5
 #define NW_PERK_SKIP		6
 #define NW_PERK_COUNT		7
-int NeonWave_PerkLevel( int perk );
+int NeonWave_PerkLevel( int clientID, int perk );
 int NeonWave_WaveStartTime( void );
 qboolean NeonWave_TrySecondWind( gentity_t *ent );
 void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damage );

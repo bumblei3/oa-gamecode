@@ -1006,7 +1006,7 @@ void ClientThink_real( gentity_t *ent ) {
 	// DASH perk: 1.7x speed for 1.5s after each wave start
 	if ( g_gametype.integer == GT_NEONWAVE
 			&& !( ent->r.svFlags & SVF_BOT )
-			&& NeonWave_PerkLevel( NW_PERK_DASH ) > 0 ) {
+			&& NeonWave_PerkLevel( ent - g_entities, NW_PERK_DASH ) > 0 ) {
 		int dt = level.time - NeonWave_WaveStartTime();
 		if ( dt >= 0 && dt < 1500 ) {
 			client->ps.speed = client->ps.speed * 17 / 10;

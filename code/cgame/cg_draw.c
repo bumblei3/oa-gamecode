@@ -41,8 +41,11 @@ static const char *NW_ModifierEffect( int mod ) {
 	case 9: return "MIRROR — reflect 1/3 of bot damage back";
 	case 10: return "REGEN — health topped up each wave";
 	case 11: return "SURGE — tougher drones, x3 points";
+	case 12: return "FROST — slowed player, frosty drones";
+	case 13: return "CHAOS — random skill per drone";
+	case 14: return "MIMIC — drones copy a random upgrade from a human";
 	default: return "";
-	}
+}
 }
 
 static void CG_DrawNeonCodex( void ) {
@@ -52,16 +55,16 @@ static void CG_DrawNeonCodex( void ) {
 	{
 		int i;
 		int y = 60;
-		const char *names[12] = {
+		const char *names[15] = {
 			"", "GLASS DRONES", "SWARM", "LOW GRAVITY", "DOUBLE POINTS",
 			"TIME WARP", "VAMPIRE", "FRENZY", "OVERSHIELD", "MIRROR",
-			"REGEN", "SURGE"
+			"REGEN", "SURGE", "FROST", "CHAOS", "MIMIC"
 		};
 		vec4_t cc = {0.7f, 0.9f, 1.0f, 1.0f};
 		vec4_t ce = {0.85f, 0.85f, 0.9f, 1.0f};
 		char s[128];
 		CG_DrawSmallStringColor( 320 - 60, y, "NEONWAVE CODEX", cc ); y += SMALLCHAR_HEIGHT + 6;
-		for ( i = 1; i <= 11; i++ ) {
+		for ( i = 1; i <= 14; i++ ) {
 			Com_sprintf( s, sizeof(s), "%s: %s", names[i], NW_ModifierEffect(i) );
 			CG_DrawSmallStringColor( 60, y, s, ce ); y += SMALLCHAR_HEIGHT + 2;
 		}
@@ -1575,6 +1578,9 @@ static float CG_DrawNeonWave(float y) {
 			case 9: tint[0]=1.0f; tint[1]=1.0f; tint[2]=1.0f; break; // mirror: white
 			case 10: tint[0]=0.2f; tint[1]=1.0f; tint[2]=0.4f; break; // regen: green
 			case 11: tint[0]=1.0f; tint[1]=0.5f; tint[2]=0.0f; break; // surge: amber
+			case 12: tint[0]=0.6f; tint[1]=0.8f; tint[2]=1.0f; break; // frost: frosty blue
+			case 13: tint[0]=0.9f; tint[1]=0.2f; tint[2]=0.7f; break; // chaos: hot pink-purple
+			case 14: tint[0]=1.0f; tint[1]=0.0f; tint[2]=1.0f; break; // mimic: magenta
 			default: tint[0]=0.7f; tint[1]=0.6f; tint[2]=0.0f; break;
 			}
 			tint[3] = 0.06f + 0.08f * pulse;

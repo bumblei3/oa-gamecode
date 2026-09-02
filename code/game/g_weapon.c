@@ -572,7 +572,7 @@ void weapon_railgun_fire (gentity_t *ent)
 #ifdef NEONARENA_MOD
 	if ( g_gametype.integer == GT_NEONWAVE && ent->client
 			&& !( ent->r.svFlags & SVF_BOT ) ) {
-		maxHits = MAX_RAIL_HITS + 2 * NeonWave_PerkLevel( NW_PERK_PIERCE );
+		maxHits = MAX_RAIL_HITS + 2 * NeonWave_PerkLevel( ent->s.clientNum, NW_PERK_PIERCE );
 		if ( maxHits > MAX_RAIL_UNLINK ) {
 			maxHits = MAX_RAIL_UNLINK;
 		}
@@ -660,7 +660,7 @@ void weapon_railgun_fire (gentity_t *ent)
 #ifdef NEONARENA_MOD
 	if ( g_gametype.integer == GT_NEONWAVE && ent->client
 			&& !( ent->r.svFlags & SVF_BOT )
-			&& NeonWave_PerkLevel( NW_PERK_PIERCE ) > 0 && hits >= 2 ) {
+			&& NeonWave_PerkLevel( ent->s.clientNum, NW_PERK_PIERCE ) > 0 && hits >= 2 ) {
 		gentity_t *extra = G_TempEntity( trace.endpos, EV_RAILTRAIL );
 		extra->s.clientNum = ent->s.clientNum;
 		VectorCopy( tent->s.origin2, extra->s.origin2 );

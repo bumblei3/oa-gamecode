@@ -36,7 +36,8 @@
 #define NW_MOD_SURGE		11	// tougher drones but wave clear grants x3 upgrade points
 #define NW_MOD_FROST		12	// slowed player (g_speed), frosty drones
 #define NW_MOD_CHAOS		13	// chaotic spawns: random skill + spawn delay
-#define NW_MOD_POOL_SIZE	13
+#define NW_MOD_MIMIC		14	// drones copy a random upgrade value from a random human
+#define NW_MOD_POOL_SIZE	15
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -78,6 +79,8 @@ static qboolean NW_ModActive( int mod );
 static qboolean NW_DifficultyLocked( void );
 static gentity_t *NW_VampireHealTarget( void );
 static void NW_VampireHeal( gentity_t *t );
+static void NW_RollOffers( int clientID );
+static void NW_MirrorPerks( int clientID );
 
 // ---- dynamic difficulty (v0.16): scale challenge to player performance ----
 // deaths push down, clean streak waves push up. Applied as boss HP multiplier.
@@ -164,8 +167,8 @@ static qboolean nw_over;
 static int nw_event;
 static qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
 static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
-static int nw_perk[ NW_PERK_COUNT ];	// stacks/charges, index 1..6
-static int nw_offer[ 3 ];			// break-window perk cards (0 = empty)
+static int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];	// per-client stacks/charges
+static int nw_offer[ MAX_CLIENTS ][ 3 ];			// per-client break-window perk cards
 static int nw_waveStartTime;
 static int nw_fxSeq;
 
@@ -299,10 +302,13 @@ void NeonWave_Reset( void ) {
 	nw_bossAttr = 0;
 	{
 		int pi;
-		for ( pi = 0; pi < NW_PERK_COUNT; pi++ ) {
-			nw_perk[pi] = 0;
+		int cid;
+		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
+			for ( pi = 0; pi < NW_PERK_COUNT; pi++ ) {
+				nw_perk[cid][pi] = 0;
+			}
+			nw_offer[cid][0] = nw_offer[cid][1] = nw_offer[cid][2] = 0;
 		}
-		nw_offer[0] = nw_offer[1] = nw_offer[2] = 0;
 	}
 	// v0.34 test hook: g_neonwave_perkr N grants rank-3 of perk N immediately
 	// (deterministic CI check that rank-scaled effects engage). Read once here.
@@ -312,9 +318,9 @@ void NeonWave_Reset( void ) {
 		trap_Cvar_VariableStringBuffer( "g_neonwave_perkr", prBuf, sizeof(prBuf) );
 		pr = atoi( prBuf );
 		if ( pr >= 1 && pr < NW_PERK_COUNT ) {
-			nw_perk[pr] = NW_PerkCap( pr );
+			nw_perk[0][pr] = NW_PerkCap( pr );
 			G_Printf( "NeonWave: PERK RANK FORCE %s -> rank %i\n",
-				NW_PerkName( pr ), nw_perk[pr] );
+				NW_PerkName( pr ), nw_perk[0][pr] );
 		}
 	}
 	nw_waveStartTime = 0;
@@ -975,11 +981,14 @@ static int NW_PerkCap( int id ) {
 	return 1; // SKIP / SECOND WIND are consumables
 }
 
-int NeonWave_PerkLevel( int perk ) {
+int NeonWave_PerkLevel( int clientID, int perk ) {
 	if ( perk <= 0 || perk >= NW_PERK_COUNT ) {
 		return 0;
 	}
-	return nw_perk[ perk ];
+	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
+		return 0;
+	}
+	return nw_perk[ clientID ][ perk ];
 }
 
 int NeonWave_WaveStartTime( void ) {
@@ -994,44 +1003,50 @@ void NeonWave_PerkFx( const char *kind ) {
 	trap_Cvar_Set( "ui_neonwave_fx", va( "%s-%i", kind, nw_fxSeq ) );
 }
 
-static void NW_MirrorPerks( void ) {
+static void NW_MirrorPerks( int clientID ) {
 	char offers[96];
 	char owned[96];
 	int i, first;
 
+	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
+		return;
+	}
 	Com_sprintf( offers, sizeof( offers ), "%s|%s|%s",
-		NW_PerkName( nw_offer[0] ),
-		NW_PerkName( nw_offer[1] ),
-		NW_PerkName( nw_offer[2] ) );
-	trap_Cvar_Set( "ui_neonwave_offers", offers );
+		NW_PerkName( nw_offer[clientID][0] ),
+		NW_PerkName( nw_offer[clientID][1] ),
+		NW_PerkName( nw_offer[clientID][2] ) );
+	trap_Cvar_Set( va( "ui_neonwave_offers_%i", clientID ), offers );
 
 	owned[0] = '\0';
 	first = 1;
 	for ( i = 1; i < NW_PERK_COUNT; i++ ) {
-		if ( nw_perk[i] <= 0 ) {
+		if ( nw_perk[clientID][i] <= 0 ) {
 			continue;
 		}
 		if ( !first ) {
 			Q_strcat( owned, sizeof( owned ), ", " );
 		}
 		first = 0;
-		if ( nw_perk[i] > 1 ) {
-			Q_strcat( owned, sizeof( owned ), va( "%s x%i", NW_PerkName( i ), nw_perk[i] ) );
+		if ( nw_perk[clientID][i] > 1 ) {
+			Q_strcat( owned, sizeof( owned ), va( "%s x%i", NW_PerkName( i ), nw_perk[clientID][i] ) );
 		} else {
 			Q_strcat( owned, sizeof( owned ), NW_PerkName( i ) );
 		}
 	}
-	trap_Cvar_Set( "ui_neonwave_owned", owned );
+	trap_Cvar_Set( va( "ui_neonwave_owned_%i", clientID ), owned );
 }
 
-static void NW_RollOffers( void ) {
+static void NW_RollOffers( int clientID ) {
 	int eligible[ NW_PERK_COUNT ];
 	int n = 0, i, slot, idx;
 	char force[32];
 	int a = 0, b = 0, c = 0;
 
-	nw_offer[0] = nw_offer[1] = nw_offer[2] = 0;
-	trap_Cvar_Set( "ui_neonwave_picked", "0" );
+	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
+		return;
+	}
+	nw_offer[clientID][0] = nw_offer[clientID][1] = nw_offer[clientID][2] = 0;
+	trap_Cvar_Set( va( "ui_neonwave_picked_%i", clientID ), "0" );
 
 	trap_Cvar_VariableStringBuffer( "g_neonwave_perkforce", force, sizeof( force ) );
 	// packed 3 digits (123 = PIERCE CHAIN DASH) — ioq3 +set cannot pass commas
@@ -1046,12 +1061,12 @@ static void NW_RollOffers( void ) {
 		}
 	}
 	if ( a >= 1 && a < NW_PERK_COUNT ) {
-		nw_offer[0] = a;
-		nw_offer[1] = b;
-		nw_offer[2] = c;
+		nw_offer[clientID][0] = a;
+		nw_offer[clientID][1] = b;
+		nw_offer[clientID][2] = c;
 	} else {
 		for ( i = 1; i < NW_PERK_COUNT; i++ ) {
-			if ( nw_perk[i] < NW_PerkCap( i ) ) {
+			if ( nw_perk[clientID][i] < NW_PerkCap( i ) ) {
 				eligible[n++] = i;
 			}
 		}
@@ -1060,19 +1075,20 @@ static void NW_RollOffers( void ) {
 			if ( idx < 0 ) {
 				idx += n;
 			}
-			nw_offer[slot] = eligible[idx];
+			nw_offer[clientID][slot] = eligible[idx];
 			eligible[idx] = eligible[--n];
 		}
 	}
 	G_Printf( "NeonWave: PERK OFFER F1=%s F2=%s F3=%s\n",
-		NW_PerkName( nw_offer[0] ),
-		NW_PerkName( nw_offer[1] ),
-		NW_PerkName( nw_offer[2] ) );
-	NW_MirrorPerks();
+		NW_PerkName( nw_offer[clientID][0] ),
+		NW_PerkName( nw_offer[clientID][1] ),
+		NW_PerkName( nw_offer[clientID][2] ) );
+	NW_MirrorPerks( clientID );
 }
 
 qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	int id, pts, cap;
+	int clientID;
 
 	if ( !NeonWave_IsBreak() ) {
 		return qfalse;
@@ -1080,7 +1096,14 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	if ( slot < 1 || slot > 3 ) {
 		return qfalse;
 	}
-	id = nw_offer[ slot - 1 ];
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+	clientID = ent - g_entities;
+	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	id = nw_offer[clientID][ slot - 1 ];
 	if ( id < 1 || id >= NW_PERK_COUNT ) {
 		return qfalse;
 	}
@@ -1089,46 +1112,47 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 		return qfalse;
 	}
 	cap = NW_PerkCap( id );
-	if ( nw_perk[id] >= cap ) {
+	if ( nw_perk[clientID][id] >= cap ) {
 		return qfalse;
 	}
-	nw_perk[id]++;
+	nw_perk[clientID][id]++;
 	pts--;
 	ent->client->pers.neonwaveUpgradePts = pts;
 	NW_MirrorPointsCvar();
-	nw_offer[ slot - 1 ] = 0;
-	trap_Cvar_Set( "ui_neonwave_picked", va( "%i", slot ) );
+	nw_offer[clientID][ slot - 1 ] = 0;
+	trap_Cvar_Set( va( "ui_neonwave_picked_%i", clientID ), va( "%i", slot ) );
 	G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
-		NW_PerkName( id ), nw_perk[id], pts );
-	if ( ent && ent->client ) {
-		trap_SendServerCommand( ent - g_entities,
-			va( "cp \"PERK: %s\\n\"", NW_PerkName( id ) ) );
-	} else {
-		trap_SendServerCommand( -1, va( "cp \"PERK: %s\\n\"", NW_PerkName( id ) ) );
-	}
-	NW_MirrorPerks();
+		NW_PerkName( id ), nw_perk[clientID][id], pts );
+	trap_SendServerCommand( ent - g_entities,
+		va( "cp \"PERK: %s\\n\"", NW_PerkName( id ) ) );
+	NW_MirrorPerks( clientID );
 	NeonWave_RefreshStatus();
 	return qtrue;
 }
 
 qboolean NeonWave_TrySecondWind( gentity_t *ent ) {
+	int clientID;
 	if ( !ent || !ent->client ) {
 		return qfalse;
 	}
 	if ( g_gametype.integer != GT_NEONWAVE ) {
 		return qfalse;
 	}
-	if ( nw_perk[ NW_PERK_SECONDWIND ] <= 0 ) {
+	clientID = ent - g_entities;
+	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
 		return qfalse;
 	}
-	nw_perk[ NW_PERK_SECONDWIND ]--;
+	if ( nw_perk[clientID][ NW_PERK_SECONDWIND ] <= 0 ) {
+		return qfalse;
+	}
+	nw_perk[clientID][ NW_PERK_SECONDWIND ]--;
 	ent->health = 40;
 	ent->client->ps.stats[ STAT_HEALTH ] = 40;
 	ent->client->ps.pm_type = PM_NORMAL;
 	G_Printf( "NeonWave: SECOND WIND saved the player\n" );
 	trap_SendServerCommand( -1, "cp \"SECOND WIND\\n\"" );
 	NeonWave_PerkFx( "secondwind" );
-	NW_MirrorPerks();
+	NW_MirrorPerks( clientID );
 	return qtrue;
 }
 
@@ -1141,7 +1165,7 @@ void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damag
 	if ( g_gametype.integer != GT_NEONWAVE ) {
 		return;
 	}
-	hops = NeonWave_PerkLevel( NW_PERK_CHAIN );
+	hops = NeonWave_PerkLevel( attacker - g_entities, NW_PERK_CHAIN );
 	if ( hops < 1 || !attacker || !primary ) {
 		return;
 	}
@@ -1195,6 +1219,8 @@ void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damag
 static void NW_Autopick( void ) {
 	char buf[8];
 	int slot;
+	int clientID;
+	gentity_t *ent;
 
 	trap_Cvar_VariableStringBuffer( "g_neonwave_autopick", buf, sizeof( buf ) );
 	slot = atoi( buf );
@@ -1202,7 +1228,14 @@ static void NW_Autopick( void ) {
 		return;
 	}
 	trap_Cvar_Set( "g_neonwave_autopick", "0" );
-	NeonWave_BuyOffer( NULL, slot );
+	// Coop: autopick applies to all connected human clients
+	for ( clientID = 0; clientID < MAX_CLIENTS; clientID++ ) {
+		ent = &g_entities[clientID];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		NeonWave_BuyOffer( ent, slot );
+	}
 }
 
 // Publish the active modifier(s) to a cvar bitmask so g_combat.c (MIRROR reflect
@@ -1223,7 +1256,8 @@ static void NW_PickModifier( int num ) {
 	static const int pool[NW_MOD_POOL_SIZE] = {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
 		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD,
-		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST, NW_MOD_CHAOS
+		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST, NW_MOD_CHAOS,
+		NW_MOD_MIMIC, NW_MOD_MIMIC
 	};
 	int idx;
 	int maxWave;
@@ -1251,11 +1285,11 @@ static void NW_PickModifier( int num ) {
 	// test hooks (v0.35): g_neonwave_modifier N forces slot 1, g_neonwave_modifier2 N
 	// forces slot 2. Each works independently so MIRROR can be forced in either slot.
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_CHAOS ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_MIMIC ) {
 		nw_modifier = atoi( mbBuf );
 	}
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof( mb2Buf ) );
-	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_CHAOS ) {
+	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_MIMIC ) {
 		nw_modifier2 = atoi( mb2Buf );
 	}
 	if ( nw_modifier != NW_MOD_NONE || nw_modifier2 != NW_MOD_NONE ) {
@@ -1263,13 +1297,24 @@ static void NW_PickModifier( int num ) {
 		NW_ApplySynergy();
 		return;
 	}
-	if ( nw_perk[ NW_PERK_SKIP ] > 0 ) {
-		nw_perk[ NW_PERK_SKIP ]--;
-		nw_modifier = NW_MOD_NONE;
-		G_Printf( "NeonWave: SKIP modifier\n" );
-		NW_MirrorPerks();
-		NW_PublishModifiers();
-		return;
+	// SKIP perk: check if any connected human client has it (coop-aware)
+	{
+		int cid;
+		gentity_t *ent;
+		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
+			ent = &g_entities[cid];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) continue;
+			if ( nw_perk[cid][ NW_PERK_SKIP ] > 0 ) {
+				nw_perk[cid][ NW_PERK_SKIP ]--;
+				nw_modifier = NW_MOD_NONE;
+				G_Printf( "NeonWave: SKIP modifier (client %i)\n", cid );
+				NW_MirrorPerks( cid );
+				NW_PublishModifiers();
+				return;
+			}
+		}
 	}
 	idx = ( num - 5 + nw_dailyOffset ) % NW_MOD_POOL_SIZE;
 	if ( idx < 0 ) {
@@ -1305,6 +1350,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_SURGE:		return "SURGE";
 	case NW_MOD_FROST:		return "FROST";
 	case NW_MOD_CHAOS:		return "CHAOS";
+	case NW_MOD_MIMIC:		return "MIMIC";
 	default:			return "";
 	}
 }
@@ -1542,36 +1588,118 @@ void NeonWave_StartWave( int num ) {
 	if ( NW_ModActive( NW_MOD_SWARM ) ) {
 		botCount *= 2;
 	}
+	// MIMIC: drones copy a random upgrade value from a random human player
+	if ( NW_ModActive( NW_MOD_MIMIC ) ) {
+		int humanCount = 0;
+		int humans[MAX_CLIENTS];
+		gentity_t *src = NULL;
+		int mimicStat;
+		int mimicValue = 0;
+		int k;
 
-	nw_waveStartTime = level.time;
-	if ( nw_perk[ NW_PERK_OVERCHARGE ] > 0 ) {
-		char qBuf[8];
-		int qf, k;
-		int rank = nw_perk[ NW_PERK_OVERCHARGE ];
-		trap_Cvar_VariableStringBuffer( "g_quadfactor", qBuf, sizeof( qBuf ) );
-		qf = atoi( qBuf );
-		if ( qf < 3 ) {
-			qf = 3;
-		}
-		// rank-scaled: +2 per rank (rank 1 -> +2, rank 3 -> +6)
-		trap_Cvar_Set( "g_quadfactor", va( "%i", qf + 2 * rank ) );
+		// find all human players
 		for ( k = 0; k < level.maxclients; k++ ) {
 			gentity_t *p = &g_entities[k];
 			if ( !p->inuse || !p->client ) continue;
 			if ( p->client->pers.connected != CON_CONNECTED ) continue;
 			if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-			if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
-			p->health = p->health * 2 / 3;
-			if ( p->health < 1 ) p->health = 1;
-			p->client->ps.stats[STAT_HEALTH] = p->health;
+			if ( p->r.svFlags & SVF_BOT ) continue;
+			humans[humanCount++] = k;
 		}
-		nw_perk[ NW_PERK_OVERCHARGE ]--;
-		G_Printf( "NeonWave: OVERCHARGE active (rank %i, quadfactor %i)\n", rank, qf + 2 * rank );
-		NeonWave_PerkFx( "overcharge" );
-		NW_MirrorPerks();
+		if ( humanCount > 0 ) {
+			src = &g_entities[humans[rand() % humanCount]];
+			// pick a random stat: 0 = HP, 1 = DMG, 2 = Speed
+			mimicStat = rand() % 3;
+			if ( mimicStat == 0 ) {
+				mimicValue = src->client->pers.neonwaveUpHp;
+				G_Printf( "NeonWave: MIMIC copies HP level %i from %s\n",
+					mimicValue, src->client->pers.netname );
+			} else if ( mimicStat == 1 ) {
+				mimicValue = src->client->pers.neonwaveDmg;
+				G_Printf( "NeonWave: MIMIC copies DMG level %i from %s\n",
+					mimicValue, src->client->pers.netname );
+			} else {
+				mimicValue = src->client->pers.neonwaveSpeed;
+				G_Printf( "NeonWave: MIMIC copies SPEED level %i from %s\n",
+					mimicValue, src->client->pers.netname );
+			}
+			// apply to all bots
+			for ( k = 0; k < level.maxclients; k++ ) {
+				gentity_t *bot = &g_entities[k];
+				if ( !bot->inuse || !bot->client ) continue;
+				if ( !( bot->r.svFlags & SVF_BOT ) ) continue;
+				if ( mimicStat == 0 ) {
+					bot->client->pers.neonwaveUpHp = mimicValue;
+					if ( mimicValue > 0 ) {
+						int bonus = mimicValue * 25;
+						if ( bonus > 150 ) bonus = 150;
+						bot->client->pers.maxHealth = 100 + bonus;
+						bot->client->ps.stats[STAT_MAX_HEALTH] = bot->client->pers.maxHealth;
+						bot->health = bot->client->pers.maxHealth;
+						bot->client->ps.stats[STAT_HEALTH] = bot->health;
+					}
+				} else if ( mimicStat == 1 ) {
+					bot->client->pers.neonwaveDmg = mimicValue;
+				} else {
+					bot->client->pers.neonwaveSpeed = mimicValue;
+				}
+			}
+		} else {
+			G_Printf( "NeonWave: MIMIC active but no human players found\n" );
+		}
 	}
-	if ( nw_perk[ NW_PERK_DASH ] > 0 ) {
-		NeonWave_PerkFx( "dash" );
+
+	nw_waveStartTime = level.time;
+	// OVERCHARGE: check if any connected human client has it (coop-aware)
+	{
+		int cid;
+		gentity_t *ent;
+		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
+			ent = &g_entities[cid];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) continue;
+			if ( nw_perk[cid][ NW_PERK_OVERCHARGE ] > 0 ) {
+				char qBuf[8];
+				int qf, k;
+				int rank = nw_perk[cid][ NW_PERK_OVERCHARGE ];
+				trap_Cvar_VariableStringBuffer( "g_quadfactor", qBuf, sizeof( qBuf ) );
+				qf = atoi( qBuf );
+				if ( qf < 3 ) {
+					qf = 3;
+				}
+				// rank-scaled: +2 per rank (rank 1 -> +2, rank 3 -> +6)
+				trap_Cvar_Set( "g_quadfactor", va( "%i", qf + 2 * rank ) );
+				for ( k = 0; k < level.maxclients; k++ ) {
+					gentity_t *p = &g_entities[k];
+					if ( !p->inuse || !p->client ) continue;
+					if ( p->client->pers.connected != CON_CONNECTED ) continue;
+					if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+					if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+					p->health = p->health * 2 / 3;
+					if ( p->health < 1 ) p->health = 1;
+					p->client->ps.stats[STAT_HEALTH] = p->health;
+				}
+				nw_perk[cid][ NW_PERK_OVERCHARGE ]--;
+				G_Printf( "NeonWave: OVERCHARGE active (client %i, rank %i, quadfactor %i)\n", cid, rank, qf + 2 * rank );
+				NeonWave_PerkFx( "overcharge" );
+				NW_MirrorPerks( cid );
+			}
+		}
+	}
+	// DASH: check if any connected human client has it (coop-aware)
+	{
+		int cid;
+		gentity_t *ent;
+		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
+			ent = &g_entities[cid];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) continue;
+			if ( nw_perk[cid][ NW_PERK_DASH ] > 0 ) {
+				NeonWave_PerkFx( "dash" );
+			}
+		}
 	}
 
 	NW_SendStatus( NW_EV_RUNNING );
@@ -1697,14 +1825,21 @@ static void NW_EnterBreak( void ) {
 	NW_GrantUpgradePoints();
 	NeonWave_DropReward( nw_wave );
 	NW_UpdateDifficultyOnClear();
-	NW_RollOffers();
+	// Coop: roll offers for each connected human client (per-client perk pools)
+	{
+		int cid;
+		gentity_t *ent;
+		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
+			ent = &g_entities[cid];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) continue;
+			NW_RollOffers( cid );
+		}
+	}
 	NW_SendStatus( NW_EV_CLEARED );
 	NeonWave_LogPayload();
-	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\\nF1 %s  F2 %s  F3 %s\"",
-		nw_wave,
-		NW_PerkName( nw_offer[0] ),
-		NW_PerkName( nw_offer[1] ),
-		NW_PerkName( nw_offer[2] ) ) );
+	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\\n\"", nw_wave ) );
 	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, NW_WAVE_BREAK );
 	NW_Autopick();
 }
@@ -1846,9 +1981,10 @@ static void NW_WriteRunStats( int event ) {
 	char buf[1024];
 	char mods[256];
 	char achs[256];
-	const char *modNames[9] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
+	const char *modNames[15] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
 	                           "DOUBLE POINTS", "TIME WARP", "VAMPIRE",
-	                           "FRENZY", "OVERSHIELD" };
+	                           "FRENZY", "OVERSHIELD", "MIRROR", "REGEN",
+	                           "SURGE", "FROST", "CHAOS", "MIMIC" };
 
 	NW_CheckAchievements( event );
 
@@ -2053,9 +2189,9 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		if ( boss ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
 			int teleportCd = ( boss->health < maxhp / 2 ) ? 4000 : 8000;
+			vec3_t origin, angles;
 			if ( level.time - nw_bossLastAttack > teleportCd ) {
 				nw_bossLastAttack = level.time;
-				vec3_t origin, angles;
 				gentity_t *spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
 				if ( spawn ) {
 					G_SetOrigin( boss, origin );
@@ -2177,6 +2313,24 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 	}
 }
 
+
+void NeonWave_OnDroneKill( gentity_t *attacker ) {
+	gentity_t *t;
+	if ( g_gametype.integer != GT_NEONWAVE ) {
+		return;
+	}
+	if ( !NW_ModActive( NW_MOD_VAMPIRE ) ) {
+		return;
+	}
+	t = attacker;
+	if ( !t || !t->client || t->health <= 0
+			|| ( ( t->r.svFlags & SVF_BOT ) && !NW_TestPlayerSkipBots() ) ) {
+		t = NW_VampireHealTarget();
+	}
+	if ( t && t->health > 0 ) {
+		NW_VampireHeal( t );
+	}
+}
 
 void NeonWave_Frame( void ) {
 	int humans, bots, i;
