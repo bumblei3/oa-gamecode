@@ -34,7 +34,8 @@
 #define NW_MOD_MIRROR		9	// bots' damage is partially reflected back on hit
 #define NW_MOD_REGEN		10	// player regenerates HP at the start of each wave
 #define NW_MOD_SURGE		11	// tougher drones but wave clear grants x3 upgrade points
-#define NW_MOD_POOL_SIZE	11
+#define NW_MOD_FROST		12	// slowed player (g_speed), drones frosty (+25% HP)
+#define NW_MOD_POOL_SIZE	12
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -1199,7 +1200,7 @@ static void NW_PickModifier( int num ) {
 	static const int pool[NW_MOD_POOL_SIZE] = {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
 		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD,
-		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE
+		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST
 	};
 	int idx;
 	int maxWave;
@@ -1227,11 +1228,11 @@ static void NW_PickModifier( int num ) {
 	// test hooks (v0.35): g_neonwave_modifier N forces slot 1, g_neonwave_modifier2 N
 	// forces slot 2. Each works independently so MIRROR can be forced in either slot.
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_SURGE ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_FROST ) {
 		nw_modifier = atoi( mbBuf );
 	}
-	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof(mb2Buf) );
-	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_SURGE ) {
+	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof( mb2Buf ) );
+	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_FROST ) {
 		nw_modifier2 = atoi( mb2Buf );
 	}
 	if ( nw_modifier != NW_MOD_NONE || nw_modifier2 != NW_MOD_NONE ) {
@@ -1279,6 +1280,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_MIRROR:		return "MIRROR";
 	case NW_MOD_REGEN:		return "REGEN";
 	case NW_MOD_SURGE:		return "SURGE";
+	case NW_MOD_FROST:		return "FROST";
 	default:			return "";
 	}
 }
@@ -1410,6 +1412,10 @@ void NeonWave_StartWave( int num ) {
 		if ( NW_ModActive( NW_MOD_TIMEWARP ) ) {
 			speed = 520; // ~1.6x of default 320
 		}
+		G_Printf( "NeonWave: FROST slowed to %i\n", speed );
+		if ( NW_ModActive( NW_MOD_FROST ) ) {
+			speed = 220; // slowed player (frost effect)
+		}
 		if ( NW_ModActive( NW_MOD_FRENZY ) ) {
 			qf = 4;
 		}
@@ -1495,6 +1501,9 @@ void NeonWave_StartWave( int num ) {
 	if ( NW_ModActive( NW_MOD_SURGE ) ) {
 		if ( skill < 5 ) skill += 1;
 		G_Printf( "NeonWave: SURGE drones hardened\n" );
+	}
+	// FROST: slowed player, frosty drones
+	if ( NW_ModActive( NW_MOD_FROST ) ) {
 	}
 	if ( NW_ModActive( NW_MOD_GLASS ) && skill < 4 ) {
 		skill += 1; // glass drones are fast/aggressive
