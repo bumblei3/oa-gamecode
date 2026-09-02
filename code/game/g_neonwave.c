@@ -374,6 +374,68 @@ for ( i = 0; i < level.maxclients; i++ ) {
 }
 }
 
+static int NW_CountHumans( void ) {
+	int i, total = 0;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		total++;
+	}
+	return total;
+}
+
+// Coop: wave clears when no drones remain AND at least one human is alive.
+// Dead humans respawn at the next wave break (NW_EnterBreak). If ALL humans
+// die, the game ends (handled separately by the humans==0 check above).
+static qboolean NW_CoopWaveClear( int drones ) {
+	int i, alive;
+	gentity_t *ent;
+	if ( drones > 0 ) return qfalse;
+	alive = 0;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->health > 0 ) alive++;
+	}
+	return ( alive > 0 );
+}
+
+static void NW_CoopRespawnDead( void ) {
+	int i;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->health > 0 ) continue;
+		// Respawn dead human at a random spawn point with full HP/armor
+		ent->health = 100;
+		ent->client->ps.stats[STAT_HEALTH] = 100;
+		ent->client->ps.stats[STAT_ARMOR] = 100;
+		ent->client->ps.pm_type = PM_NORMAL;
+		ent->client->ps.pm_flags &= ~PMF_FOLLOW;
+		trap_UnlinkEntity( ent );
+		{
+			vec3_t origin, angles;
+			gentity_t *spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
+			if ( spawn ) {
+				G_SetOrigin( ent, origin );
+				VectorCopy( angles, ent->client->ps.viewangles );
+				trap_LinkEntity( ent );
+			}
+		}
+	}
+}
+
 static void NW_SpawnBot( int skill ) {
 	trap_SendConsoleCommand( EXEC_APPEND,
 		va("addbot sarge %i \"Drone W%d-%d\"\n", skill, nw_wave, ++nw_botCounter) );
@@ -1260,6 +1322,7 @@ void NeonWave_StartWave( int num ) {
 	nw_wave = num;
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
+	NW_CoopRespawnDead(); // respawn dead humans at wave start (coop)
 	nw_waveHadBots = qfalse;
 	nw_bossType = 0;
 	nw_bossPhase = 1;
@@ -2247,7 +2310,7 @@ void NeonWave_Frame( void ) {
 		return;
 	}
 
-	if ( nw_waveHadBots && bots == 0 ) {
+	if ( nw_waveHadBots && NW_CoopWaveClear( bots ) ) {
 		// endless mode: g_neonwave_maxwave 0 = unlimited waves; victory only
 		// when the current wave reaches the (cvar-set) final wave
 		char mwBuf[8];
