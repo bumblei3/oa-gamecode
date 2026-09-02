@@ -76,6 +76,8 @@ static int NW_PerkCap( int id );
 static void NW_ApplySynergy( void );
 static qboolean NW_ModActive( int mod );
 static qboolean NW_DifficultyLocked( void );
+static gentity_t *NW_VampireHealTarget( void );
+static void NW_VampireHeal( gentity_t *t );
 
 // ---- dynamic difficulty (v0.16): scale challenge to player performance ----
 // deaths push down, clean streak waves push up. Applied as boss HP multiplier.
@@ -154,9 +156,7 @@ static qboolean fcPending( void ) {
 
 static qboolean nw_started;
 static int nw_botCounter;
-static vec3_t nw_chaosSpot;
 static qboolean nw_chaosActive;
-static int nw_chaosStartCounter;
 static qboolean nw_inBreak;
 static int nw_breakEnd;
 static qboolean nw_waveHadBots;	// true once at least one bot connected this wave
@@ -1533,7 +1533,7 @@ void NeonWave_StartWave( int num ) {
 	// CHAOS: chaotic spawns (random skill per drone)
 	if ( NW_ModActive( NW_MOD_CHAOS ) ) {
 		nw_chaosActive = qtrue;
-		nw_chaosStartCounter = nw_botCounter;
+
 		G_Printf( "NeonWave: CHAOS mode — random skill per drone\n" );
 	}
 	if ( NW_ModActive( NW_MOD_GLASS ) && skill < 4 ) {
@@ -2113,8 +2113,8 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			for ( i = 0; i < level.maxclients && !player; i++ ) {
 				gentity_t *e = &g_entities[i];
 				if ( e->inuse && e->client
-					&& e->client->pers.connected == CON_CONNECTED
-					&& e->health > 0 ) {
+						&& e->client->pers.connected == CON_CONNECTED
+						&& e->health > 0 ) {
 					player = e;
 				}
 			}
@@ -2132,7 +2132,7 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			}
 		}
 		if ( boss && boss->client->pers.neonwaveBossShield
-			&& level.time > boss->client->pers.neonwaveBossShieldEnd ) {
+				&& level.time > boss->client->pers.neonwaveBossShieldEnd ) {
 			boss->client->pers.neonwaveBossShield = 0;
 			G_Printf( "NeonWave: WARDEN armor drops\n" );
 		}
