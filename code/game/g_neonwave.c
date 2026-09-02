@@ -8,7 +8,7 @@
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT		5	// SNIPER TANK SWARM GLASS WARDEN — rotate each boss wave
+#define NW_BOSS_COUNT		6	// SNIPER TANK SWARM GLASS WARDEN BERSERKER — rotate each boss wave
 
 // Test hooks (used by CI smoke test):
 //   g_neonwave_autostart 1   -> waves start without a human player (headless test)
@@ -57,6 +57,7 @@ static int nw_modifier = NW_MOD_NONE;
 static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (wave >= 8)
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
 static int nw_bossPhase = 1;		// boss phase (1 normal, 2 enraged after 50% hp)
+static int nw_bossLastAttack = 0;	// last BERSERKER attack frame (speed hacking)
 static int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
@@ -491,7 +492,8 @@ static void NW_SpawnBot( int skill ) {
 #define NW_BOSS_TANK	2	// slow, huge HP, chaingun-style MG spam
 #define NW_BOSS_SWARM	3	// spawns mini-drones during the wave
 #define NW_BOSS_GLASS	4	// glass cannon: fast, 2x HP, railgun
-#define NW_BOSS_WARDEN	5	// v0.15: teleport-strikes the player's zone + brief armor phase
+#define NW_BOSS_WARDEN		5	// v0.15: teleport-strikes the player's zone + brief armor phase
+#define NW_BOSS_BERSERKER	6	// v0.40: slow, huge HP, MG spam — enrages below 30% HP
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -500,11 +502,12 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_WARDEN ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_BERSERKER ) {
 		return forced;
 	}
-	// one step per boss wave so a classic 20-wave run sees all five types:
-	// wave 10 SNIPER, 11 TANK, 12 SWARM MOTHER, 13 GLASS CANNON, 14 WARDEN, ...
+	// one step per boss wave so a classic 20-wave run sees all six types:
+	// wave 10 SNIPER, 11 TANK, 12 SWARM MOTHER, 13 GLASS CANNON, 14 WARDEN,
+	// 15 BERSERKER
 	// daily challenge shifts the rotation start
 	{
 		int rot = ( nw_wave - NW_BOSS_WAVE ) % NW_BOSS_COUNT;
@@ -524,6 +527,7 @@ static const char *NW_BossName( int type ) {
 	case NW_BOSS_SWARM:	return "SWARM MOTHER";
 	case NW_BOSS_GLASS:	return "GLASS CANNON";
 	case NW_BOSS_WARDEN:	return "WARDEN";
+	case NW_BOSS_BERSERKER:	return "BERSERKER";
 	default:		return "SNIPER";
 	}
 }
@@ -540,6 +544,9 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_WARDEN ) {
 		hc = 500; // 5x — warden: tanky teleporter
+	}
+	if ( type == NW_BOSS_BERSERKER ) {
+		hc = 700; // 7x — berserk: massive HP, enrages
 	}
 	// dynamic difficulty (v0.16): scale boss HP with player performance
 	if ( nw_difficulty != 0 ) {
@@ -2025,7 +2032,25 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		}
 	}
 
-	if ( nw_bossType == NW_BOSS_TANK ) {
+	if ( nw_bossType == NW_BOSS_BERSERKER ) {
+		// berserker: rage mechanic — below 30% HP, faster rate of fire + more damage
+		// rage mode: +2 skill equivalent, fire rate doubled, screen flash on attack
+		gentity_t *boss = NW_FindBoss();
+		if ( boss ) {
+			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+			qboolean rage = ( maxhp > 0 && boss->health < maxhp * NW_BOSS_RAGE_HP );
+			if ( rage && nw_bossPhase == 1 ) {
+				nw_bossPhase = 2;
+				G_Printf( "NeonWave: BERSERKER ENTERS RAGE\n" );
+				trap_SendServerCommand( -1, "cp \"BERSERKER ENTERS RAGE\\n\"" );
+			}
+			if ( rage && level.time - nw_bossLastAttack > 800 ) {
+				// rage: attack twice as fast (800ms instead of 1600ms)
+				nw_bossLastAttack = level.time;
+				trap_SendServerCommand( -1, "cp \"BERSERKER ATTACKS\\n\"" );
+			}
+		}
+	} else if ( nw_bossType == NW_BOSS_TANK ) {
 		// tank: periodic regeneration burst while "shielded" (visualized by
 		// the boss glow pulse); implemented as self-heal to avoid touching
 		// G_Damage — keeps all boss logic inside g_neonwave.c
