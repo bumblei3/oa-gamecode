@@ -34,8 +34,9 @@
 #define NW_MOD_MIRROR		9	// bots' damage is partially reflected back on hit
 #define NW_MOD_REGEN		10	// player regenerates HP at the start of each wave
 #define NW_MOD_SURGE		11	// tougher drones but wave clear grants x3 upgrade points
-#define NW_MOD_FROST		12	// slowed player (g_speed), drones frosty (+25% HP)
-#define NW_MOD_POOL_SIZE	12
+#define NW_MOD_FROST		12	// slowed player (g_speed), frosty drones
+#define NW_MOD_CHAOS		13	// chaotic spawns: random skill + spawn delay
+#define NW_MOD_POOL_SIZE	13
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -152,6 +153,9 @@ static qboolean fcPending( void ) {
 
 static qboolean nw_started;
 static int nw_botCounter;
+static vec3_t nw_chaosSpot;
+static qboolean nw_chaosActive;
+static int nw_chaosStartCounter;
 static qboolean nw_inBreak;
 static int nw_breakEnd;
 static qboolean nw_waveHadBots;	// true once at least one bot connected this wave
@@ -471,6 +475,13 @@ static void NW_CoopRespawnDead( void ) {
 }
 
 static void NW_SpawnBot( int skill ) {
+	if ( nw_chaosActive ) {
+		// CHAOS: random skill per drone (1..max), chaotic naming
+		skill = ( rand() % skill ) + 1;
+		trap_SendConsoleCommand( EXEC_APPEND,
+			va("addbot sarge %i \"Drone W%d-%d CHAOS\"\n", skill, nw_wave, ++nw_botCounter) );
+		return;
+	}
 	trap_SendConsoleCommand( EXEC_APPEND,
 		va("addbot sarge %i \"Drone W%d-%d\"\n", skill, nw_wave, ++nw_botCounter) );
 }
@@ -1200,7 +1211,7 @@ static void NW_PickModifier( int num ) {
 	static const int pool[NW_MOD_POOL_SIZE] = {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
 		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD,
-		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST
+		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST, NW_MOD_CHAOS
 	};
 	int idx;
 	int maxWave;
@@ -1228,11 +1239,11 @@ static void NW_PickModifier( int num ) {
 	// test hooks (v0.35): g_neonwave_modifier N forces slot 1, g_neonwave_modifier2 N
 	// forces slot 2. Each works independently so MIRROR can be forced in either slot.
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_FROST ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_CHAOS ) {
 		nw_modifier = atoi( mbBuf );
 	}
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof( mb2Buf ) );
-	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_FROST ) {
+	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_CHAOS ) {
 		nw_modifier2 = atoi( mb2Buf );
 	}
 	if ( nw_modifier != NW_MOD_NONE || nw_modifier2 != NW_MOD_NONE ) {
@@ -1281,6 +1292,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_REGEN:		return "REGEN";
 	case NW_MOD_SURGE:		return "SURGE";
 	case NW_MOD_FROST:		return "FROST";
+	case NW_MOD_CHAOS:		return "CHAOS";
 	default:			return "";
 	}
 }
@@ -1357,6 +1369,7 @@ void NeonWave_StartWave( int num ) {
 	nw_wave = num;
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
+	nw_chaosActive = qfalse;
 	NW_CoopRespawnDead(); // respawn dead humans at wave start (coop)
 	nw_waveHadBots = qfalse;
 	nw_bossType = 0;
@@ -1504,6 +1517,12 @@ void NeonWave_StartWave( int num ) {
 	}
 	// FROST: slowed player, frosty drones
 	if ( NW_ModActive( NW_MOD_FROST ) ) {
+	}
+	// CHAOS: chaotic spawns (random skill per drone)
+	if ( NW_ModActive( NW_MOD_CHAOS ) ) {
+		nw_chaosActive = qtrue;
+		nw_chaosStartCounter = nw_botCounter;
+		G_Printf( "NeonWave: CHAOS mode — random skill per drone\n" );
 	}
 	if ( NW_ModActive( NW_MOD_GLASS ) && skill < 4 ) {
 		skill += 1; // glass drones are fast/aggressive
