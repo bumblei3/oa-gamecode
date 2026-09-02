@@ -388,6 +388,19 @@ static int NW_CountHumans( void ) {
 	return total;
 }
 
+// Coop test hook: simulate extra humans in headless mode (no real 2nd client).
+// g_neonwave_coopmock = 1 → mock 1 extra alive human
+// g_neonwave_coopmock = 2 → mock 1 extra dead human
+static int NW_CoopMockExtra( qboolean alive ) {
+	char buf[8];
+	int mock;
+	trap_Cvar_VariableStringBuffer( "g_neonwave_coopmock", buf, sizeof(buf) );
+	mock = atoi( buf );
+	if ( mock == 0 ) return 0;
+	if ( alive && mock == 1 ) return 1;
+	if ( !alive && mock == 2 ) return 1;
+	return 0;
+}
 // Coop: wave clears when no drones remain AND at least one human is alive.
 // Dead humans respawn at the next wave break (NW_EnterBreak). If ALL humans
 // die, the game ends (handled separately by the humans==0 check above).
@@ -404,7 +417,26 @@ static qboolean NW_CoopWaveClear( int drones ) {
 		if ( ent->r.svFlags & SVF_BOT ) continue;
 		if ( ent->health > 0 ) alive++;
 	}
+	alive += NW_CoopMockExtra( qtrue );
 	return ( alive > 0 );
+}
+
+// g_neonwave_selfkill 1 → kill the human player each frame (test coop respawn)
+static void NW_SelfKillHuman( void ) {
+	int i;
+	gentity_t *ent;
+	char buf[8];
+	trap_Cvar_VariableStringBuffer( "g_neonwave_selfkill", buf, sizeof(buf) );
+	if ( atoi( buf ) != 1 ) return;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->health <= 0 ) continue;
+		ent->health = 0;
+		ent->client->ps.stats[STAT_HEALTH] = 0;
+	}
 }
 
 static void NW_CoopRespawnDead( void ) {
@@ -431,6 +463,7 @@ static void NW_CoopRespawnDead( void ) {
 				G_SetOrigin( ent, origin );
 				VectorCopy( angles, ent->client->ps.viewangles );
 				trap_LinkEntity( ent );
+				G_Printf( "NeonWave: COOP RESPAWN revived dead human\n" );
 			}
 		}
 	}
@@ -2164,6 +2197,7 @@ void NeonWave_Frame( void ) {
 		else humans++;
 	}
 	nw_aliveBots = bots;
+	NW_SelfKillHuman(); // test hook: kill human each frame (coop respawn test)
 
 	// test hook: g_neonwave_fakecombo N simulates a human kill streak of N
 	// (tests the combo bonus + RUN STATS pipeline without real players)

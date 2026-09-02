@@ -220,6 +220,8 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_best", "0", CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_neonwaveBossAttr, "g_neonwave_bossattr", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_music", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_coopmock", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_selfkill", "0", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
