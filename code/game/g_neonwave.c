@@ -304,6 +304,7 @@ void NeonWave_Reset( void ) {
 	trap_Cvar_Set( "ui_neonwave_owned", "" );
 	trap_Cvar_Set( "ui_neonwave_picked", "0" );
 	trap_Cvar_Set( "ui_neonwave_fx", "" );
+	trap_Cvar_Set( "g_neonwave_upgradepoints", "0" );
 	nw_fxSeq = 0;
 	NW_DailyInit();
 	NW_LoadRecords();
@@ -315,9 +316,18 @@ void NeonWave_Reset( void ) {
 		G_Printf( "NeonWave: dynamic difficulty locked (daily=%i hardcore=%i)\n",
 			nw_dailyActive ? 1 : 0, nw_hardcore ? 1 : 0 );
 	}
-	nw_over = qfalse;
-	nw_event = 0;
-	trap_Cvar_Set( "g_neonwave_upgradepoints", "0" );
+	// Coop: upgrade points are per-client (clientPersistant_t.neonwaveUpgradePts).
+	// Reset each client's pool on run start so stale state from a previous run
+	// does not carry over.
+	{
+		int i;
+		gentity_t *ent;
+		for ( i = 0; i < level.maxclients; i++ ) {
+			ent = &g_entities[i];
+			if ( !ent->inuse || !ent->client ) continue;
+			ent->client->pers.neonwaveUpgradePts = 0;
+		}
+	}
 	// NOTE: do NOT reset g_neonwave_codex here — a +set at server start (test/dev
 	// hook) would be overwritten. It is read by NeonWave_Frame for the codex toggle.
 }
@@ -336,26 +346,20 @@ void NeonWave_ForceStarted( void ) {
 // Packs points+levels into ps.persistant[PERS_CAPTURES] (unused in GT_NEONWAVE):
 // bits 0-7 points, 8-11 hp level, 12-15 dmg level, 16-19 speed level
 static void NW_SyncUpgrades( void ) {
-	char ptsBuf[16];
-	int pts, i, val;
-	gentity_t *ent;
+int i, val;
+gentity_t *ent;
 
-	trap_Cvar_VariableStringBuffer( "g_neonwave_upgradepoints", ptsBuf, sizeof(ptsBuf) );
-	pts = atoi( ptsBuf );
-	if ( pts < 0 ) pts = 0;
-	if ( pts > 255 ) pts = 255;
-
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		val = pts
-			| ( ( ent->client->pers.neonwaveUpHp   & 0xF ) << 8 )
-			| ( ( ent->client->pers.neonwaveDmg    & 0xF ) << 12 )
-			| ( ( ent->client->pers.neonwaveSpeed  & 0xF ) << 16 );
-		ent->client->ps.persistant[PERS_CAPTURES] = val;
-	}
+for ( i = 0; i < level.maxclients; i++ ) {
+	ent = &g_entities[i];
+	if ( !ent->inuse || !ent->client ) continue;
+	if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+	if ( ent->r.svFlags & SVF_BOT ) continue;
+	val = ent->client->pers.neonwaveUpgradePts
+		| ( ( ent->client->pers.neonwaveUpHp   & 0xF ) << 8 )
+		| ( ( ent->client->pers.neonwaveDmg    & 0xF ) << 12 )
+		| ( ( ent->client->pers.neonwaveSpeed  & 0xF ) << 16 );
+	ent->client->ps.persistant[PERS_CAPTURES] = val;
+}
 }
 
 static void NW_SpawnBot( int skill ) {
@@ -453,10 +457,34 @@ static void NW_BossHealth( int *hp, int *maxhp ) {
 	}
 }
 
-static int NW_Points( void ) {
-	char buf[16];
-	trap_Cvar_VariableStringBuffer( "g_neonwave_upgradepoints", buf, sizeof(buf) );
-	return atoi( buf );
+static int NW_PointsForClient( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return 0;
+	}
+	return ent->client->pers.neonwaveUpgradePts;
+}
+
+// Compatibility helper: points of the first connected human client (for
+// CS_NEONWAVE payload and legacy cvar readers). Under coop this is NOT the
+// sum of all clients — it is the first one, so the payload stays a single
+// number and the cgame reads its own client->pers instead.
+static int NW_PointsBroadcast( void ) {
+	int i;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		return ent->client->pers.neonwaveUpgradePts;
+	}
+	return 0;
+}
+
+// ---- legacy cvar mirror (compatibility only): kept in sync with the
+// first connected human client so tools/debug that read the cvar still work.
+static void NW_MirrorPointsCvar( void ) {
+	trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", NW_PointsBroadcast() ) );
 }
 
 static int NW_Best( void ) {
@@ -739,7 +767,7 @@ static void NW_SendStatus( int event ) {
 	}
 	// payload: "<wave> <ev> <bhp> <bmax> <brk> <pts> <best> <mod> <kills> <bestcombo> <runsec> <livecombo> <bosstype>"
 	trap_SetConfigstring( CS_NEONWAVE, va( "%i %i %i %i %i %i %i %i %i %i %i %i %i",
-		nw_wave, event, bossHp, bossMax, breakMs, NW_Points(), NW_Best(), nw_modifier,
+		nw_wave, event, bossHp, bossMax, breakMs, NW_PointsBroadcast(), NW_Best(), nw_modifier,
 		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000,
 		NW_RunCurrentCombo(), ( bossHp > 0 ) ? nw_bossType : 0 ) );
 }
@@ -925,7 +953,7 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	if ( id < 1 || id >= NW_PERK_COUNT ) {
 		return qfalse;
 	}
-	pts = NW_Points();
+	pts = NW_PointsForClient(ent);
 	if ( pts < 1 ) {
 		return qfalse;
 	}
@@ -935,7 +963,8 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	}
 	nw_perk[id]++;
 	pts--;
-	trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", pts ) );
+	ent->client->pers.neonwaveUpgradePts = pts;
+	NW_MirrorPointsCvar();
 	nw_offer[ slot - 1 ] = 0;
 	trap_Cvar_Set( "ui_neonwave_picked", va( "%i", slot ) );
 	G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
@@ -1407,14 +1436,14 @@ int NeonWave_GetWave( void ) {
 }
 
 static void NW_GrantUpgradePoints( void ) {
-	int pts = NW_Points();
 	int gain = ( nw_wave >= NW_BOSS_WAVE ? 2 : 1 );
 	int combo;
+	int i;
 
 	if ( nw_ptsMul > 1 ) {
 		gain *= nw_ptsMul;
 		if ( NW_ModActive( NW_MOD_SURGE ) && nw_synergyIdx != 0 ) {
-			G_Printf( "NeonWave: SURGE x3 upgrade points\\n" );
+			G_Printf( "NeonWave: SURGE x3 upgrade points\n" );
 		}
 		if ( nw_synergyIdx == 0 ) {
 			G_Printf( "NeonWave: AERIAL ASSAULT x3 upgrade points\n" );
@@ -1465,9 +1494,17 @@ static void NW_GrantUpgradePoints( void ) {
 			}
 		}
 	}
-	pts += gain;
-	trap_Cvar_Set( "g_neonwave_upgradepoints", va("%i", pts) );
-	G_Printf( "NeonWave: upgrade point granted (%i banked)\n", pts );
+	// Coop: grant points to every connected human client (per-client pool).
+	// Broadcast cvar mirrors the first client so legacy readers still work.
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t *ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		ent->client->pers.neonwaveUpgradePts += gain;
+	}
+	NW_MirrorPointsCvar();
+	G_Printf( "NeonWave: upgrade point granted (%i per client)\n", gain );
 }
 
 static void NW_EnterBreak( void ) {
@@ -1476,7 +1513,7 @@ static void NW_EnterBreak( void ) {
 	// that the modifier side effect is properly undone
 	if ( NW_ModActive( NW_MOD_LOWGRAV ) ) {
 		trap_Cvar_Set( "g_gravity", "800" );
-		G_Printf( "NeonWave: gravity restored to 800\\n" );
+		G_Printf( "NeonWave: gravity restored to 800\n" );
 	}
 	nw_breakEnd = level.time + NW_WAVE_BREAK;
 	// test hook: shorten break window when g_neonwave_fastbreak is set

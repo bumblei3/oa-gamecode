@@ -320,11 +320,14 @@ typedef struct {
 	qboolean    nwBossGlass;  // NeonWave GLASS CANNON boss (fast, 2x HP, rail)
 	int         neonwaveBossShield;    // TANK shield active (damage halved)
 	int         neonwaveBossShieldEnd; // time when the tank shield expires
-	int         neonwaveUpHp;   // +25 max HP per level
-	int         neonwaveDmg;    // damage level (+10% per level, x10 fixed point)
-	int         neonwaveSpeed;  // speed level (+5% per level, x10 fixed point)
-	int         nwKills;        // NeonWave run statistics: total drone kills
-	int         nwBestCombo;    // NeonWave run statistics: best kill streak
+		int         neonwaveUpHp;   // +25 max HP per level
+		int         neonwaveDmg;    // damage level (+10% per level, x10 fixed point)
+		int         neonwaveSpeed;  // speed level (+5% per level, x10 fixed point)
+		int         nwKills;        // NeonWave run statistics: total drone kills
+		int         nwBestCombo;    // NeonWave run statistics: best kill streak
+		// NeonArena Coop: upgrade points are per-client (not a global cvar) so
+		// each player can spend independently during the wave-break perk shop.
+		int         neonwaveUpgradePts; // points available for this client's shop
 #endif
 } clientPersistant_t;
 
