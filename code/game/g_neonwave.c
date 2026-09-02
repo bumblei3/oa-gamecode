@@ -77,10 +77,92 @@ static int NW_PerkCap( int id );
 static void NW_ApplySynergy( void );
 static qboolean NW_ModActive( int mod );
 static qboolean NW_DifficultyLocked( void );
-static gentity_t *NW_VampireHealTarget( void );
-static void NW_VampireHeal( gentity_t *t );
 static void NW_RollOffers( int clientID );
 static void NW_MirrorPerks( int clientID );
+static int NW_TestPlayerSkipBots( void );
+
+// ---- vampiric healing stubs (implemented in g_combat.c via cvar) ----
+static gentity_t *NW_VampireHealTarget( void ) {
+	int i;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->health > 0 ) return ent;
+	}
+	return NULL;
+}
+
+static void NW_VampireHeal( gentity_t *t ) {
+	(void)t; // healing applied via g_neonwave_vampheal cvar in g_combat.c
+}
+
+// ---- performance cache (v0.42): aggregate per-client scans into one pass ----
+// NW_SendStatus (every 200-250ms) and NW_GameOver each call NW_RunKills,
+// NW_RunBestCombo, NW_RunCurrentCombo, NW_BossHealth, NW_PointsBroadcast —
+// five O(maxclients) loops. We compute them all in one pass and cache the
+// result, invalidating only when relevant state changes.
+typedef struct nwCache_t {
+    int     kills;
+    int     bestCombo;
+    int     currentCombo;
+    int     bossHp;
+    int     bossMax;
+    int     points;         // first human's upgrade points
+    qboolean valid;
+} nwCache_t;
+
+static nwCache_t nw_cache;
+static const nwCache_t *NW_Cache( void );
+
+static void NW_InvalidateCache( void ) {
+    nw_cache.valid = qfalse;
+}
+
+// Single-pass aggregation of all per-client statistics.
+static const nwCache_t *NW_Cache( void ) {
+    int i;
+    gentity_t *ent;
+    if ( nw_cache.valid ) {
+        return &nw_cache;
+    }
+    nw_cache.kills = 0;
+    nw_cache.bestCombo = nw_runBestCombo;
+    nw_cache.currentCombo = 0;
+    nw_cache.bossHp = 0;
+    nw_cache.bossMax = 0;
+    nw_cache.points = 0;
+    for ( i = 0; i < level.maxclients; i++ ) {
+        ent = &g_entities[i];
+        if ( !ent->inuse || !ent->client ) continue;
+        if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+        if ( !( ent->r.svFlags & SVF_BOT ) || NW_TestPlayerSkipBots() ) {
+            nw_cache.kills += ent->client->pers.nwKills;
+        }
+        if ( !( ent->r.svFlags & SVF_BOT ) || NW_TestPlayerSkipBots() ) {
+            if ( ent->client->pers.nwBestCombo > nw_cache.bestCombo ) {
+                nw_cache.bestCombo = ent->client->pers.nwBestCombo;
+            }
+        }
+        if ( !( ent->r.svFlags & SVF_BOT ) ) {
+            if ( ent->client->nwCombo > nw_cache.currentCombo ) {
+                nw_cache.currentCombo = ent->client->nwCombo;
+            }
+        }
+        if ( nw_cache.points == 0 && !( ent->r.svFlags & SVF_BOT ) ) {
+            nw_cache.points = ent->client->pers.neonwaveUpgradePts;
+        }
+        if ( ( ent->r.svFlags & SVF_BOT ) && ent->health > 0
+                && ent->client->pers.neonwaveBoss ) {
+            nw_cache.bossHp = ent->health;
+            nw_cache.bossMax = ent->client->ps.stats[STAT_MAX_HEALTH];
+        }
+    }
+    nw_cache.valid = qtrue;
+    return &nw_cache;
+}
 
 // ---- dynamic difficulty (v0.16): scale challenge to player performance ----
 // deaths push down, clean streak waves push up. Applied as boss HP multiplier.
@@ -576,24 +658,6 @@ static void NW_SpawnBoss( void ) {
 		va("addbot sarge 5 \"BOSS W%d %s\"\n", nw_wave, NW_BossName( type )) );
 }
 
-static void NW_BossHealth( int *hp, int *maxhp ) {
-	gentity_t *ent;
-	int i;
-
-	*hp = 0;
-	*maxhp = 0;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
-		if ( ent->health <= 0 ) continue;
-		if ( !ent->client->pers.neonwaveBoss ) continue;
-		*hp = ent->health;
-		*maxhp = ent->client->ps.stats[STAT_MAX_HEALTH];
-		return;
-	}
-}
-
 static int NW_PointsForClient( gentity_t *ent ) {
 	if ( !ent || !ent->client ) {
 		return 0;
@@ -605,17 +669,9 @@ static int NW_PointsForClient( gentity_t *ent ) {
 // CS_NEONWAVE payload and legacy cvar readers). Under coop this is NOT the
 // sum of all clients — it is the first one, so the payload stays a single
 // number and the cgame reads its own client->pers instead.
+// Uses the cached scan result (NW_Cache).
 static int NW_PointsBroadcast( void ) {
-	int i;
-	gentity_t *ent;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		return ent->client->pers.neonwaveUpgradePts;
-	}
-	return 0;
+	return NW_Cache()->points;
 }
 
 // ---- legacy cvar mirror (compatibility only): kept in sync with the
@@ -650,48 +706,6 @@ void NeonWave_TrackRunCombo( int combo ) {
 	if ( combo > nw_runBestCombo ) {
 		nw_runBestCombo = combo;
 	}
-}
-
-static int NW_RunKills( void ) {
-	int i, kills = 0;
-	int skipBots = !NW_TestPlayerSkipBots();
-	gentity_t *ent;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( skipBots && ( ent->r.svFlags & SVF_BOT ) ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		kills += ent->client->pers.nwKills;
-	}
-	return kills;
-}
-
-static int NW_RunBestCombo( void ) {
-	int i, best = nw_runBestCombo;
-	int skipBots = !NW_TestPlayerSkipBots();
-	gentity_t *ent;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( skipBots && ( ent->r.svFlags & SVF_BOT ) ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->client->pers.nwBestCombo > best ) best = ent->client->pers.nwBestCombo;
-	}
-	return best;
-}
-
-// live combo streak (highest current nwCombo among humans) for the HUD popup
-static int NW_RunCurrentCombo( void ) {
-	int i, cur = 0;
-	gentity_t *ent;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->client->nwCombo > cur ) cur = ent->client->nwCombo;
-	}
-	return cur;
 }
 
 // ---- persistent records (survive map change / restart) ----
@@ -847,8 +861,10 @@ static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
 }
 
 static void NW_UpdateRecords( void ) {
-	int kills = NW_RunKills();
-	int combo = NW_RunBestCombo();
+	// Use the cached single-pass scan (also used by NW_SendStatus)
+	const nwCache_t *cache = NW_Cache();
+	int kills = cache->kills;
+	int combo = cache->bestCombo;
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
 	qboolean changed = qfalse;
 
@@ -894,19 +910,21 @@ static void NW_MirrorRecordCvars( void ) {
 }
 
 static void NW_SendStatus( int event ) {
-	int bossHp, bossMax, breakMs;
+	int breakMs;
+	const nwCache_t *cache;
 
 	nw_event = event;
-	NW_BossHealth( &bossHp, &bossMax );
+	cache = NW_Cache();
+
 	breakMs = 0;
 	if ( nw_inBreak && nw_breakEnd > level.time ) {
 		breakMs = nw_breakEnd - level.time;
 	}
 	// payload: "<wave> <ev> <bhp> <bmax> <brk> <pts> <best> <mod> <kills> <bestcombo> <runsec> <livecombo> <bosstype>"
 	trap_SetConfigstring( CS_NEONWAVE, va( "%i %i %i %i %i %i %i %i %i %i %i %i %i",
-		nw_wave, event, bossHp, bossMax, breakMs, NW_PointsBroadcast(), NW_Best(), nw_modifier,
-		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000,
-		NW_RunCurrentCombo(), ( bossHp > 0 ) ? nw_bossType : 0 ) );
+		nw_wave, event, cache->bossHp, cache->bossMax, breakMs, cache->points, NW_Best(), nw_modifier,
+		cache->kills, cache->bestCombo, ( level.time - nw_runStartTime ) / 1000,
+		cache->currentCombo, ( cache->bossHp > 0 ) ? nw_bossType : 0 ) );
 }
 
 void NeonWave_RefreshStatus( void ) {
@@ -1017,20 +1035,25 @@ static void NW_MirrorPerks( int clientID ) {
 		NW_PerkName( nw_offer[clientID][2] ) );
 	trap_Cvar_Set( va( "ui_neonwave_offers_%i", clientID ), offers );
 
+	// Build the owned string with Com_sprintf at the current offset instead of
+	// repeated Q_strcat (which scans from the start each time). We track the
+	// current length manually.
 	owned[0] = '\0';
 	first = 1;
 	for ( i = 1; i < NW_PERK_COUNT; i++ ) {
+		int len = (int)strlen( owned );
 		if ( nw_perk[clientID][i] <= 0 ) {
 			continue;
 		}
 		if ( !first ) {
-			Q_strcat( owned, sizeof( owned ), ", " );
+			Com_sprintf( owned + len, sizeof( owned ) - len, ", " );
+			len = (int)strlen( owned );
 		}
 		first = 0;
 		if ( nw_perk[clientID][i] > 1 ) {
-			Q_strcat( owned, sizeof( owned ), va( "%s x%i", NW_PerkName( i ), nw_perk[clientID][i] ) );
+			Com_sprintf( owned + len, sizeof( owned ) - len, "%s x%i", NW_PerkName( i ), nw_perk[clientID][i] );
 		} else {
-			Q_strcat( owned, sizeof( owned ), NW_PerkName( i ) );
+			Com_sprintf( owned + len, sizeof( owned ) - len, "%s", NW_PerkName( i ) );
 		}
 	}
 	trap_Cvar_Set( va( "ui_neonwave_owned_%i", clientID ), owned );
@@ -1753,7 +1776,7 @@ static void NW_GrantUpgradePoints( void ) {
 		G_Printf( "NeonWave: boss kill bonus +3\n" );
 	}
 	// combo bonus: +1 point for streaks of 5+ kills
-	combo = NW_RunBestCombo();
+	combo = NW_Cache()->bestCombo;
 	if ( combo >= 5 ) {
 		gain += combo / 5;
 		G_Printf( "NeonWave: combo bonus +%i (best streak %i)\n", combo / 5, combo );
@@ -1914,7 +1937,7 @@ static void NW_SaveAchievements( void ) {
 // "ACHIEVEMENT <NAME>" fire every run the badge is earned (CI-assertable).
 // "ACHIEVEMENT UNLOCKED <NAME>" fires only the first time ever (player feedback).
 static void NW_CheckAchievements( int event ) {
-	int combo = NW_RunBestCombo();
+	int combo = NW_Cache()->bestCombo;
 	int deaths = NW_RunDeaths();
 	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
@@ -1974,8 +1997,9 @@ static void NW_CheckAchievements( int event ) {
 static void NW_WriteRunStats( int event ) {
 	fileHandle_t f;
 	int len;
-	int kills = NW_RunKills();
-	int bestCombo = NW_RunBestCombo();
+	const nwCache_t *cache = NW_Cache();
+	int kills = cache->kills;
+	int bestCombo = cache->bestCombo;
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
 	int i, modCount = 0, first = qtrue, achCount = 0;
 	char buf[1024];
@@ -2047,10 +2071,14 @@ static void NW_GameOver( int event, const char *why ) {
 	trap_Cvar_Set( "g_speed", "320" );
 	trap_Cvar_Set( "g_quadfactor", "3" );
 	NeonWave_UpdateHighscore();
+	// Use cached values (already computed by NW_UpdateRecords above)
 	NW_UpdateRecords();
 	NW_SendStatus( event );
-	G_Printf( "NeonWave: RUN STATS kills=%i bestCombo=%i time=%is\n",
-		NW_RunKills(), NW_RunBestCombo(), ( level.time - nw_runStartTime ) / 1000 );
+	{
+		const nwCache_t *cache = NW_Cache();
+		G_Printf( "NeonWave: RUN STATS kills=%i bestCombo=%i time=%is\n",
+			cache->kills, cache->bestCombo, ( level.time - nw_runStartTime ) / 1000 );
+	}
 	NW_KickBots();
 	G_Printf( "NeonWave: %s (wave %i)\n", why, nw_wave );
 	NW_WriteRunStats( event );
@@ -2190,9 +2218,10 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
 			int teleportCd = ( boss->health < maxhp / 2 ) ? 4000 : 8000;
 			vec3_t origin, angles;
+			gentity_t *spawn;
 			if ( level.time - nw_bossLastAttack > teleportCd ) {
 				nw_bossLastAttack = level.time;
-				gentity_t *spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
+				spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
 				if ( spawn ) {
 					G_SetOrigin( boss, origin );
 					trap_LinkEntity( boss );
@@ -2356,6 +2385,10 @@ void NeonWave_Frame( void ) {
 	if ( nw_over ) {
 		return;
 	}
+
+	// Invalidate the per-client cache each frame so NW_Cache() recomputes
+	// fresh values (kills, combos, boss HP, points) from current state.
+	NW_InvalidateCache();
 
 	humans = 0;
 	bots = 0;
