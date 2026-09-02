@@ -1377,6 +1377,28 @@ void NeonWave_StartWave( int num ) {
 		botCount += 2;
 		if ( skill < 5 ) skill += 1;
 	}
+	// coop scaling: more humans = more drones + optional difficulty notch
+	{
+		int humans = NW_CountHumans();
+		if ( humans > 1 ) {
+			char cdBuf[8];
+			int cd = 0;
+			trap_Cvar_VariableStringBuffer( "g_neonwave_coopdifficulty", cdBuf, sizeof(cdBuf) );
+			cd = atoi( cdBuf );
+			// +1 drone per additional human (beyond the first)
+			botCount += ( humans - 1 );
+			if ( cd >= 2 ) {
+				// normal/hard: +1 more drone per human
+				botCount += ( humans - 1 );
+			}
+			if ( cd >= 3 ) {
+				// hard: one notch harder skill
+				if ( skill < 5 ) skill += 1;
+			}
+			G_Printf( "NeonWave: COOP scale %i humans, difficulty %i -> %i drones, skill %i\n",
+				humans, cd, botCount, skill );
+		}
+	}
 
 	// apply modifier side effects (slot 1 AND slot 2 both apply), then
 	// named-pair synergy nudges so the second slot is actually felt.
