@@ -2320,9 +2320,18 @@ static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
 			va("print \"%s already at max level %i\n\"", arg, cap) );
 		return;
 	}
-	(*level)++;
-	pts--;
-	trap_Cvar_Set( "g_neonwave_upgradepoints", va("%i", pts) );
+	// escalating cost: 1 point for levels 0-3, 2 points for levels 4+
+	{
+		int cost = ( *level >= 4 ) ? 2 : 1;
+		if ( pts < cost ) {
+			trap_SendServerCommand( ent - g_entities,
+				va("print \"%s needs %d points (you have %d)\n\"", arg, cost, pts) );
+			return;
+		}
+		(*level)++;
+		pts -= cost;
+		trap_Cvar_Set( "g_neonwave_upgradepoints", va("%i", pts) );
+	}
 
 	// apply immediately: raise max + heal on HP upgrade
 	if ( level == &ent->client->pers.neonwaveUpHp ) {
