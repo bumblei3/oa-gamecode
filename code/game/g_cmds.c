@@ -2349,6 +2349,59 @@ static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
 		ent->client->pers.netname, arg, *level );
 	NeonWave_RefreshStatus();
 }
+
+// Wave-Select: Toggle UI and handle selection
+static void Cmd_NeonWaveSelect_f( gentity_t *ent ) {
+	char wsBuf[8], wcBuf[8];
+	int active, choice, wave;
+	int waves[] = {1, 5, 10, 15, 20};
+	
+	if ( !ent || !ent->client ) return;
+	
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselect", wsBuf, sizeof(wsBuf) );
+	active = atoi(wsBuf);
+	
+	if ( active ) {
+		trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselchoice", wcBuf, sizeof(wcBuf) );
+		choice = atoi(wcBuf);
+		if ( choice < 1 ) choice = 1;
+		if ( choice > 5 ) choice = 5;
+		wave = waves[choice - 1];
+		
+		trap_Cvar_Set( "ui_neonwave_waveselect", "0" );
+		trap_Cvar_Set( "g_neonwave_startwave", va("%i", wave) );
+		G_Printf( "NeonWave: Wave-Select -> starting wave %i\n", wave );
+	} else {
+		trap_Cvar_Set( "ui_neonwave_waveselect", "1" );
+		trap_Cvar_Set( "ui_neonwave_waveselchoice", "1" );
+	}
+}
+
+static void Cmd_NeonWaveSelectUp_f( gentity_t *ent ) {
+	char wsBuf[8], wcBuf[8];
+	int choice;
+	
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselect", wsBuf, sizeof(wsBuf) );
+	if ( atoi(wsBuf) != 1 ) return;
+	
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselchoice", wcBuf, sizeof(wcBuf) );
+	choice = atoi(wcBuf);
+	if ( choice > 1 ) choice--;
+	trap_Cvar_Set( "ui_neonwave_waveselchoice", va("%i", choice) );
+}
+
+static void Cmd_NeonWaveSelectDown_f( gentity_t *ent ) {
+	char wsBuf[8], wcBuf[8];
+	int choice;
+	
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselect", wsBuf, sizeof(wsBuf) );
+	if ( atoi(wsBuf) != 1 ) return;
+	
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_waveselchoice", wcBuf, sizeof(wcBuf) );
+	choice = atoi(wcBuf);
+	if ( choice < 5 ) choice++;
+	trap_Cvar_Set( "ui_neonwave_waveselchoice", va("%i", choice) );
+}
 #endif
 
 //KK-OAX This is the table that ClientCommands runs the console entry against. 
@@ -2356,6 +2409,9 @@ commands_t cmds[ ] =
 {
 #ifdef NEONARENA_MOD
 	{ "upgrade", 0, Cmd_NeonUpgrade_f },
+	{ "waveselect", 0, Cmd_NeonWaveSelect_f },
+	{ "waveselect_up", 0, Cmd_NeonWaveSelectUp_f },
+	{ "waveselect_down", 0, Cmd_NeonWaveSelectDown_f },
 #endif
 	// normal commands
 	{ "team", 0, Cmd_Team_f },

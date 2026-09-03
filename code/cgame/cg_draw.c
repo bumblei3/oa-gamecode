@@ -1435,6 +1435,17 @@ static float CG_DrawNeonWave(float y) {
 	static int lastWaveEvent = -1;
 	static qboolean setCvar = qfalse;
 
+	// Wave-Select UI (F5 to toggle)
+	static int waveSelectActive = 0;
+	static int waveSelectChoice = 1;
+	{
+		// Toggle on F5 press (checked via key catcher)
+		// For simplicity, use cvar set by server when player presses F5
+		char wsBuf[8];
+		trap_Cvar_VariableStringBuffer("ui_neonwave_waveselect", wsBuf, sizeof(wsBuf));
+		waveSelectActive = atoi(wsBuf);
+	}
+
 	{
 		char dbuf[8];
 		trap_Cvar_VariableStringBuffer("ui_neonwave_daily", dbuf, sizeof(dbuf));
@@ -1482,6 +1493,33 @@ static float CG_DrawNeonWave(float y) {
 		}
 	}
 	if (!s[0]) return y;
+
+	// Draw wave-select overlay if active
+	if (waveSelectActive) {
+		const char *options[] = {"WAVE 1", "WAVE 5", "WAVE 10", "WAVE 15", "WAVE 20"};
+		int numOptions = 5;
+		int i;
+		int boxW = 200;
+		int boxH = 30;
+		int startX = 320 - boxW / 2;
+		int startY = 200;
+
+		// Background
+		{
+			vec4_t bg = {0.05f, 0.1f, 0.15f, 0.85f};
+			CG_FillRect(startX - 10, startY - 10, boxW + 20, numOptions * (boxH + 5) + 20, bg);
+		}
+
+		for (i = 0; i < numOptions; i++) {
+			int oy = startY + i * (boxH + 5);
+			vec4_t btnColor = {0.1f, 0.2f, 0.3f, 0.7f};
+			if (i + 1 == waveSelectChoice) {
+				btnColor[0] = 0.2f; btnColor[1] = 0.8f; btnColor[2] = 0.8f; btnColor[3] = 0.9f;
+			}
+			CG_FillRect(startX, oy, boxW, boxH, btnColor);
+			CG_DrawBigStringColor(startX + 10, oy + 5, options[i], color);
+		}
+	}
 
 	color[3] = 0.78f + 0.22f * (float)sin(cg.time / 220.0);
 	w = CG_DrawStrlen(s) * BIGCHAR_WIDTH;

@@ -227,6 +227,9 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_modifier2", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_daily", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_dailyseed", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_waveselect", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "ui_neonwave_waveselect", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "ui_neonwave_waveselchoice", "1", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
