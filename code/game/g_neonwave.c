@@ -2402,6 +2402,16 @@ void NeonWave_Frame( void ) {
 		else humans++;
 	}
 	nw_aliveBots = bots;
+	// MIMIC: magenta glow on drones (mirror effect, similar to WARDEN boss)
+	if ( NW_ModActive( NW_MOD_MIMIC ) ) {
+		for ( i = 0; i < level.maxclients; i++ ) {
+			ent = &g_entities[i];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
+			if ( ent->health <= 0 ) continue;
+			ent->s.constantLight = 255 | ( 0 << 8 ) | ( 255 << 16 ) | ( 120 << 24 );
+		}
+	}
 	NW_SelfKillHuman(); // test hook: kill human each frame (coop respawn test)
 
 	// test hook: g_neonwave_fakecombo N simulates a human kill streak of N
