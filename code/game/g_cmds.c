@@ -2304,11 +2304,11 @@ static void Cmd_NeonUpgrade_f( gentity_t *ent ) {
 	}
 
 	if ( !Q_stricmp( arg, "hp" ) ) {
-		level = &ent->client->pers.neonwaveUpHp; cap = 6; what = "+25 max HP";
+		level = &ent->client->pers.neonwaveUpHp; cap = 8; what = "+25 max HP";
 	} else if ( !Q_stricmp( arg, "dmg" ) ) {
-		level = &ent->client->pers.neonwaveDmg; cap = 5; what = "+10% damage";
+		level = &ent->client->pers.neonwaveDmg; cap = 7; what = "+10% damage";
 	} else if ( !Q_stricmp( arg, "speed" ) ) {
-		level = &ent->client->pers.neonwaveSpeed; cap = 5; what = "+5% speed";
+		level = &ent->client->pers.neonwaveSpeed; cap = 7; what = "+5% speed";
 	} else {
 		trap_SendServerCommand( ent - g_entities,
 			"print \"usage: upgrade 1|2|3  (perk cards)  or  hp|dmg|speed\n\"" );

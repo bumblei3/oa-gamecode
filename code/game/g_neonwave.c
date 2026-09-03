@@ -641,6 +641,10 @@ static void NW_SpawnBoss( void ) {
 	if ( type == NW_BOSS_TELEPORTER ) {
 		hc = 350; // 3.5x — teleporter: evasive, moderate HP
 	}
+	// wave scaling: bosses get +20% HP per wave past boss wave 10
+	if ( nw_wave > NW_BOSS_WAVE ) {
+		hc = hc * ( 100 + ( nw_wave - NW_BOSS_WAVE ) * 20 ) / 100;
+	}
 	// dynamic difficulty (v0.16): scale boss HP with player performance
 	if ( nw_difficulty != 0 ) {
 		hc = hc * ( 100 + nw_difficulty * 15 ) / 100;
