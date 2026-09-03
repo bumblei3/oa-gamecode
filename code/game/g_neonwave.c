@@ -2396,9 +2396,12 @@ void NeonWave_Frame( void ) {
 		return;
 	}
 
-	// Invalidate the per-client cache each frame so NW_Cache() recomputes
-	// fresh values (kills, combos, boss HP, points) from current state.
-	NW_InvalidateCache();
+	// Performance: Only invalidate cache every 100ms instead of every frame
+	// This reduces CPU usage significantly in late waves with 20+ bots
+	if ( level.time - lastRefresh > 100 ) {
+		NW_InvalidateCache();
+		lastRefresh = level.time;
+	}
 
 	humans = 0;
 	bots = 0;
@@ -2413,6 +2416,7 @@ void NeonWave_Frame( void ) {
 	}
 	nw_aliveBots = bots;
 	// MIMIC: magenta glow on drones (mirror effect, similar to WARDEN boss)
+	// Performance: Only apply when MIMIC is active
 	if ( NW_ModActive( NW_MOD_MIMIC ) ) {
 		for ( i = 0; i < level.maxclients; i++ ) {
 			ent = &g_entities[i];
