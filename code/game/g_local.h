@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // the "gameversion" client command will print this plus compile date
 #ifdef NEONARENA_MOD
-# define	GAMEVERSION	"NeonArena-0.48"
+# define	GAMEVERSION	"NeonArena-0.49"
 #else
 #define	GAMEVERSION	BASEGAME
 #endif
