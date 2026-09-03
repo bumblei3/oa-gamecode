@@ -2136,6 +2136,12 @@ static void NW_BossEnterPhase2( void ) {
 	case NW_BOSS_SNIPER:
 		G_Printf( "NeonWave: SNIPER ENTERS PHASE 2\n" );
 		break;
+	case NW_BOSS_BERSERKER:
+		G_Printf( "NeonWave: BERSERKER ENTERS PHASE 2\n" );
+		break;
+	case NW_BOSS_TELEPORTER:
+		G_Printf( "NeonWave: TELEPORTER ENTERS PHASE 2\n" );
+		break;
 	default:
 		G_Printf( "NeonWave: BOSS ENTERS PHASE 2\n" );
 		break;

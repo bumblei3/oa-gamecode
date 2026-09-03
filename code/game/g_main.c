@@ -223,6 +223,10 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_coopmock", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_selfkill", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_coopdifficulty", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_phaseforce", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_modifier2", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_daily", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_dailyseed", "0", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
