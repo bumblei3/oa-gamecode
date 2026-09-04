@@ -2031,6 +2031,7 @@ void	trap_R_GetViewPosition( vec3_t point );
 #ifdef NEONARENA_MOD
 void CG_NeonPerkFxPulse( void );
 float CG_NeonDashFovKick( void );
+void CG_NeonAchievement( const char *name );
 #endif
 
 #define	LFX_SMOKEPUFF		1;

@@ -76,6 +76,59 @@ static void CG_DrawNeonCodex( void ) {
 }
 #endif
 
+// Achievement display
+static int cg_achievementTime = 0;
+static char cg_achievementName[64] = {0};
+static char cg_lastAchievement[64] = {0};
+
+void CG_NeonAchievement( const char *name ) {
+	Q_strncpyz( cg_achievementName, name, sizeof(cg_achievementName) );
+	cg_achievementTime = cg.time + 3000;
+}
+
+// Poll for achievement updates from server
+static void CG_PollAchievement( void ) {
+	char buf[64];
+	trap_Cvar_VariableStringBuffer( "ui_neonwave_achievement", buf, sizeof(buf) );
+	if ( buf[0] && Q_stricmp( buf, cg_lastAchievement ) ) {
+		Q_strncpyz( cg_lastAchievement, buf, sizeof(cg_lastAchievement) );
+		CG_NeonAchievement( buf );
+	}
+}
+
+static void CG_DrawNeonAchievement( void ) {
+	CG_PollAchievement();
+	if ( cg.time > cg_achievementTime ) return;
+	if ( !cg_achievementName[0] ) return;
+
+	{
+		int x = 320;
+		int y = 100;
+		int w = 200;
+		int h = 40;
+		float alpha = 1.0f;
+
+		// Fade out in last 500ms
+		if ( cg_achievementTime - cg.time < 500 ) {
+			alpha = (float)(cg_achievementTime - cg.time) / 500.0f;
+		}
+
+		// Background
+		{
+			vec4_t bg = {0.05f, 0.15f, 0.25f, 0.8f * alpha};
+			CG_FillRect( x - w/2, y - h/2, w, h, bg );
+		}
+
+		// Text
+		{
+			vec4_t color = {1.0f, 0.85f, 0.2f, alpha};
+			CG_DrawBigStringColor( x - CG_DrawStrlen("ACHIEVEMENT") * BIGCHAR_WIDTH / 2, y - 12, "ACHIEVEMENT", color );
+			color[0] = 0.2f; color[1] = 1.0f; color[2] = 0.8f;
+			CG_DrawBigStringColor( x - CG_DrawStrlen(cg_achievementName) * BIGCHAR_WIDTH / 2, y + 8, cg_achievementName, color );
+		}
+	}
+}
+
 #ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
 
@@ -2408,6 +2461,7 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame) {
 	else if (cgs.gametype == GT_NEONWAVE) {
 		y = CG_DrawNeonWave(y);
 		CG_DrawNeonCodex();
+		CG_DrawNeonAchievement();
 	}
 #endif
 

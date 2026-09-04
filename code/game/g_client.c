@@ -1506,7 +1506,7 @@ void ClientBegin( int clientNum ) {
 	gclient_t	*client;
 	gentity_t       *tent;
 	int			flags;
-	int		countRed, countBlue, countFree;
+	int			countRed, countBlue, countFree;
 	char		userinfo[MAX_INFO_STRING];
 
 	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
@@ -1526,6 +1526,29 @@ void ClientBegin( int clientNum ) {
 	client->pers.connected = CON_CONNECTED;
 	client->pers.enterTime = level.time;
 	client->pers.teamState.state = TEAM_BEGIN;
+
+	// NeonArena: Send version welcome message + update notification
+	#ifdef NEONARENA_MOD
+	if ( !( ent->r.svFlags & SVF_BOT ) ) {
+		trap_SendServerCommand( clientNum, va( "print \"NeonArena %s — type 'upgrade' for shop, 'waveselect' for wave choice\n\"", GAMEVERSION ) );
+		// Check for update notification
+		{
+			char updateBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_updateavail", updateBuf, sizeof(updateBuf) );
+			if ( atoi(updateBuf) == 1 ) {
+				trap_SendServerCommand( clientNum, "print \"UPDATE AVAILABLE: Check https://github.com/bumblei3/neon-arena/releases\n\"" );
+			}
+		}
+		// Send MOTD
+		{
+			char motd[256];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_motd", motd, sizeof(motd) );
+			if ( motd[0] ) {
+				trap_SendServerCommand( clientNum, va( "print \"MOTD: %s\n\"", motd ) );
+			}
+		}
+	}
+	#endif
 
 	//Elimination:
 	client->pers.roundReached = 0; //We will spawn in next round

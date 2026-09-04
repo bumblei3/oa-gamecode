@@ -69,6 +69,11 @@ static qboolean nw_dailyActive;	// daily challenge (same seed = same run for eve
 static int nw_synergyIdx = -1;	// v0.37: index into nwSynergies, -1 = none
 static int nw_ptsMul = 1;		// v0.37: wave-clear point multiplier (DOUBLEPTS/SURGE/AERIAL)
 static int nw_lastSeenDeaths = -1;	// dynamic difficulty: deaths at last wave clear
+// Performance: status dirty flag — only send when data changes
+static int nw_statusDirty = 0;
+static int nw_lastStatusWave = 0;
+static int nw_lastStatusHp = 0;
+static int nw_lastStatusPts = 0;
 static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
 static int NW_RunDeaths( void );
@@ -554,12 +559,53 @@ static void NW_CoopRespawnDead( void ) {
 			vec3_t origin, angles;
 			gentity_t *spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
 			if ( spawn ) {
-				G_SetOrigin( ent, origin );
+				VectorCopy( origin, ent->client->ps.origin );
 				VectorCopy( angles, ent->client->ps.viewangles );
-				trap_LinkEntity( ent );
-				G_Printf( "NeonWave: COOP RESPAWN revived dead human\n" );
 			}
 		}
+		trap_LinkEntity( ent );
+		G_Printf( "NeonWave: COOP RESPAWN revived dead human\n" );
+	}
+}
+
+// Move dead coop players to spectator mode so they can watch
+static void NW_CoopSpectatorDead( void ) {
+	int i;
+	gentity_t *ent;
+	
+	// Only in coop mode with multiple humans
+	int humans = NW_CountHumans();
+	if ( humans <= 1 ) return;
+	
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+		if ( ent->health > 0 ) continue;
+		
+		// Move to spectator
+		ent->client->ps.pm_type = PM_SPECTATOR;
+		ent->client->ps.pm_flags |= PMF_FOLLOW;
+		ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
+		
+		// Find a living human to follow
+		{
+			int j;
+			for ( j = 0; j < level.maxclients; j++ ) {
+				gentity_t *other = &g_entities[j];
+				if ( !other->inuse || !other->client ) continue;
+				if ( other->client->pers.connected != CON_CONNECTED ) continue;
+				if ( other->r.svFlags & SVF_BOT ) continue;
+				if ( other->health <= 0 ) continue;
+				if ( other == ent ) continue;
+				ent->client->sess.spectatorClient = j;
+				break;
+			}
+		}
+		
+		G_Printf( "NeonWave: COOP SPECTATOR dead human -> following client %i\n", ent->client->sess.spectatorClient );
 	}
 }
 
@@ -573,6 +619,58 @@ static void NW_SpawnBot( int skill ) {
 	}
 	trap_SendConsoleCommand( EXEC_APPEND,
 		va("addbot sarge %i \"Drone W%d-%d\"\n", skill, nw_wave, ++nw_botCounter) );
+}
+
+// Batch-spawn multiple bots in a single console command for performance
+// Format: "addbot sarge SKILL \"NAME\"; addbot sarge SKILL \"NAME\"; ..."
+static void NW_SpawnBotsBatch( int skill, int count ) {
+	char cmd[1024];
+	int cmd_len = 0;
+	int i;
+
+	if ( count <= 0 ) return;
+
+	// For small counts, use individual commands (simpler)
+	if ( count <= 3 ) {
+		for ( i = 0; i < count; i++ ) {
+			NW_SpawnBot( skill );
+		}
+		return;
+	}
+
+	// Batch mode: build a single command string
+	// Console command limit is ~1024 chars, so batch in chunks
+	for ( i = 0; i < count; i++ ) {
+		char bot_cmd[128];
+		if ( nw_chaosActive ) {
+			int s = ( rand() % skill ) + 1;
+			Com_sprintf( bot_cmd, sizeof(bot_cmd),
+				"addbot sarge %i \"Drone W%d-%d CHAOS\"; ",
+				s, nw_wave, ++nw_botCounter );
+		} else {
+			Com_sprintf( bot_cmd, sizeof(bot_cmd),
+				"addbot sarge %i \"Drone W%d-%d\"; ",
+				skill, nw_wave, ++nw_botCounter );
+		}
+		if ( cmd_len + strlen(bot_cmd) >= sizeof(cmd) - 1 ) {
+			// Flush current batch
+			cmd[cmd_len] = '\0';
+			trap_SendConsoleCommand( EXEC_APPEND, cmd );
+			cmd_len = 0;
+		}
+		// Append bot_cmd to cmd buffer
+		{
+			int j;
+			for ( j = 0; bot_cmd[j] && cmd_len < (int)sizeof(cmd) - 1; j++ ) {
+				cmd[cmd_len++] = bot_cmd[j];
+			}
+		}
+	}
+	// Flush remaining
+	if ( cmd_len > 0 ) {
+		cmd[cmd_len] = '\0';
+		trap_SendConsoleCommand( EXEC_APPEND, cmd );
+	}
 }
 
 // boss types: rotate per boss wave, forceable via g_neonwave_bosstype for tests
@@ -917,8 +1015,19 @@ static void NW_SendStatus( int event ) {
 	int breakMs;
 	const nwCache_t *cache;
 
-	nw_event = event;
+	// Performance: skip if nothing changed since last update
 	cache = NW_Cache();
+	if ( nw_lastStatusWave == nw_wave &&
+	     nw_lastStatusHp == cache->bossHp &&
+	     nw_lastStatusPts == cache->points &&
+	     nw_event == event ) {
+		return;
+	}
+	nw_lastStatusWave = nw_wave;
+	nw_lastStatusHp = cache->bossHp;
+	nw_lastStatusPts = cache->points;
+
+	nw_event = event;
 
 	breakMs = 0;
 	if ( nw_inBreak && nw_breakEnd > level.time ) {
@@ -1461,14 +1570,16 @@ void NeonWave_StartWave( int num ) {
 	nw_bossPhase = 1;
 
 	// endless mode: past the classic max wave, keep scaling difficulty
+	// Cap at 15 bots to prevent performance issues in very late waves
 	trap_Cvar_VariableStringBuffer( "g_neonwave_maxwave", mwBuf, sizeof(mwBuf) );
 	maxWave = atoi( mwBuf );
 	if ( maxWave <= 0 ) {
 		maxWave = NW_MAX_WAVE;
 	}
 	if ( num > maxWave ) {
-		// +2 bots every 3 waves past max, capped at client limit
+		// +2 bots every 3 waves past max, capped at 15 for performance
 		botCount = maxWave + 1 + ((num - maxWave) / 3) * 2;
+		if ( botCount > 15 ) botCount = 15;
 	} else {
 		botCount = num + 1;
 	}
@@ -1751,8 +1862,13 @@ void NeonWave_StartWave( int num ) {
 	if ( num >= NW_BOSS_WAVE ) {
 		NW_SpawnBoss();
 	}
-	for ( i = 0; i < botCount && i < MAX_CLIENTS - 2; i++ ) {
-		NW_SpawnBot( skill );
+	// Performance: batch-spawn for waves with many bots
+	if ( botCount > 3 ) {
+		NW_SpawnBotsBatch( skill, botCount );
+	} else {
+		for ( i = 0; i < botCount && i < MAX_CLIENTS - 2; i++ ) {
+			NW_SpawnBot( skill );
+		}
 	}
 }
 
@@ -1987,6 +2103,8 @@ static void NW_CheckAchievements( int event ) {
 		if ( !nw_achEver[i] ) {
 			nw_achEver[i] = qtrue;
 			G_Printf( "NeonWave: ACHIEVEMENT UNLOCKED %s\n", NW_AchievementName( i ) );
+			// Notify clients via cvar
+			trap_Cvar_Set( "ui_neonwave_achievement", NW_AchievementName( i ) );
 		}
 	}
 	NW_SaveAchievements();
@@ -2190,7 +2308,7 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			if ( rage && !*lastMini ) {
 				G_Printf( "NeonWave: SWARM MOTHER ENRAGED\n" );
 			}
-			if ( level.time > *lastMini && bots < 20 ) {
+			if ( level.time > *lastMini && bots < 15 ) {
 				int spawnCd = ( rage ? 5000 : 10000 );
 				if ( nw_bossPhase == 2 ) {
 					spawnCd /= 2;
@@ -2427,6 +2545,8 @@ void NeonWave_Frame( void ) {
 		}
 	}
 	NW_SelfKillHuman(); // test hook: kill human each frame (coop respawn test)
+	// Move dead humans to spectator in coop mode
+	NW_CoopSpectatorDead();
 
 	// test hook: g_neonwave_fakecombo N simulates a human kill streak of N
 	// (tests the combo bonus + RUN STATS pipeline without real players)
