@@ -6,6 +6,11 @@
 
 #ifdef NEONARENA_MOD
 
+// q3lcc (C89) kennt keine C99-Typen
+typedef unsigned int  uint32_t;
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+
 #define REPLAY_MAGIC 0x4E525059  // 'NRPY' as hex
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
