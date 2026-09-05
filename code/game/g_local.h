@@ -920,7 +920,12 @@ qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
 
 // Replay event structure (defined in replay_recorder.c)
-struct replayEvent;
+typedef struct replayEvent {
+    unsigned int timestampMs;
+    unsigned char type;
+    float x, y;
+    unsigned char buttons;
+} replayEvent_t;
 
 void G_ReplayStart(void);
 void G_ReplayStop(void);
