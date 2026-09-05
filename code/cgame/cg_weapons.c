@@ -249,6 +249,11 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end)
 	le->leType = LE_FADE_RGB;
 	le->startTime = cg.time;
 	le->endTime = cg.time + cg_railTrailTime.value;
+#ifdef NEONARENA_MOD
+	if ( cg.railTrailHot ) {
+		le->endTime = cg.time + (int)( cg_railTrailTime.value * 1.5f );
+	}
+#endif
 	le->lifeRate = 1.0 / (le->endTime - le->startTime);
 
 	re->shaderTime = cg.time / 1000.0f;
@@ -258,7 +263,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end)
 	VectorCopy(start, re->origin);
 	VectorCopy(end, re->oldorigin);
 
-	// NeonArena mod: force neon-cyan rail trail
+	// NeonArena mod: force neon-cyan rail trail (hot gold on Ghost ambush)
 	re->shaderRGBA[0] = 0;
 	re->shaderRGBA[1] = 255;
 	re->shaderRGBA[2] = 255;
@@ -268,6 +273,16 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end)
 	le->color[1] = 0.75f;
 	le->color[2] = 0.75f;
 	le->color[3] = 1.0f;
+#ifdef NEONARENA_MOD
+	if ( cg.railTrailHot ) {
+		re->shaderRGBA[0] = 255;
+		re->shaderRGBA[1] = 255;
+		re->shaderRGBA[2] = 64;
+		le->color[0] = 1.0f;
+		le->color[1] = 1.0f;
+		le->color[2] = 0.25f;
+	}
+#endif
 
 	AxisClear( re->axis );
 

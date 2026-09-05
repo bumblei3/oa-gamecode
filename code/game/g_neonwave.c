@@ -1900,11 +1900,25 @@ void NeonWave_StartWave( int num ) {
 			NW_SpawnBot( skill );
 		}
 	}
+	if ( NW_GhostActive() ) {
+		G_Printf( "NeonWave: GHOST kit active (wave %i)\n", num );
+	}
 	if ( NW_GhostActive() && num >= 8 ) {
-		trap_Cvar_Set( "g_neonwave_nextdetector", "1" );
-		trap_SendConsoleCommand( EXEC_APPEND,
-			va( "addbot sarge %i \"Detector W%d\"\n", skill, num ) );
-		G_Printf( "NeonWave: DETECTOR spawned (wave %i)\n", num );
+		int nDet, d, detSkill;
+		nDet = 1;
+		if ( num >= 12 ) {
+			nDet = 2;
+		}
+		detSkill = skill + 1;
+		if ( detSkill > 5 ) {
+			detSkill = 5;
+		}
+		for ( d = 0; d < nDet; d++ ) {
+			trap_SendConsoleCommand( EXEC_APPEND,
+				va( "set g_neonwave_nextdetector 1; addbot sarge %i \"Detector W%d-%d\"\n",
+					detSkill, num, d + 1 ) );
+		}
+		G_Printf( "NeonWave: DETECTOR spawned (wave %i, %i, skill %i)\n", num, nDet, detSkill );
 	}
 }
 

@@ -349,6 +349,23 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace )
 	int				eFlags;
 	other = &g_entities[trace->entityNum];
 
+#ifdef NEONARENA_MOD
+	if ( ent->classname && strequals( ent->classname, "ghost_emp" ) ) {
+		SnapVectorTowards( trace->endpos, ent->s.pos.trBase );
+		G_SetOrigin( ent, trace->endpos );
+		NW_GhostEmpBurst( ent->r.currentOrigin, ent->parent );
+		G_FreeEntity( ent );
+		return;
+	}
+	if ( ent->classname && strequals( ent->classname, "ghost_lock" ) ) {
+		SnapVectorTowards( trace->endpos, ent->s.pos.trBase );
+		G_SetOrigin( ent, trace->endpos );
+		NW_GhostLockImpact( ent, other );
+		G_FreeEntity( ent );
+		return;
+	}
+#endif
+
 	// check for bounce
 	if ( !other->takedamage &&
 	        ( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {

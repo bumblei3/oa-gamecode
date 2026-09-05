@@ -939,9 +939,14 @@ void NW_GhostOnKill( gentity_t *attacker );
 void NW_GhostBreakCloak( gentity_t *ent );
 qboolean NW_GhostSwarmActive( void );
 qboolean NW_GhostSeesInvis( gentity_t *viewer );
+qboolean NW_GhostAmbush( gentity_t *ent );
+qboolean NW_GhostLocked( gentity_t *ent );
+void NW_GhostEmpBurst( vec3_t origin, gentity_t *owner );
+void NW_GhostLockImpact( gentity_t *bolt, gentity_t *other );
 int NW_BossPhase( void );
 void Cmd_GhostCloak_f( gentity_t *ent );
 void Cmd_GhostEmp_f( gentity_t *ent );
+void Cmd_GhostLockdown_f( gentity_t *ent );
 void Cmd_GhostNuke_f( gentity_t *ent );
 void CheckTeamVote( int team );
 

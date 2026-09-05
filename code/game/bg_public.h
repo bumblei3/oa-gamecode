@@ -256,6 +256,11 @@ typedef enum {
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
 	STAT_MAX_HEALTH,					// health / armor limit, changable by handicap
 	STAT_PERSISTANT_POWERUP
+#ifdef NEONARENA_MOD
+	, STAT_GHOST_ENERGY				// 0-100
+	, STAT_GHOST_CDS					// empSec | lockSec<<8 | nukeSec<<16 | cloakSec<<24
+	, STAT_GHOST_ST					// status | nukeCountdown<<8
+#endif
 } statIndex_t;
 
 

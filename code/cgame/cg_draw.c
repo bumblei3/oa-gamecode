@@ -1404,6 +1404,29 @@ static void CG_DrawNeonLook(void) {
 	if (cgs.media.neonVignetteShader) {
 		CG_DrawPic(0, 0, 640, 480, cgs.media.neonVignetteShader);
 	}
+#ifdef NEONARENA_MOD
+	if ( cg.snap ) {
+		char gbuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+		if ( atoi( gbuf ) && cg.snap->ps.powerups[PW_INVIS] > cg.time ) {
+			vec4_t cloak, edge;
+			float pulse;
+			pulse = 0.5f + 0.5f * (float)sin( cg.time / 280.0 );
+			cloak[0] = 0.04f; cloak[1] = 0.10f; cloak[2] = 0.16f;
+			cloak[3] = 0.16f + 0.08f * pulse;
+			edge[0] = 0.15f; edge[1] = 0.75f; edge[2] = 1.0f;
+			edge[3] = 0.10f + 0.08f * pulse;
+			CG_FillRect( 0, 0, 640, 480, cloak );
+			if ( cgs.media.neonVignetteShader ) {
+				trap_R_SetColor( cloak );
+				CG_DrawPic( 0, 0, 640, 480, cgs.media.neonVignetteShader );
+				trap_R_SetColor( NULL );
+			}
+			CG_FillRect( 0, 0, 640, 16, edge );
+			CG_FillRect( 0, 464, 640, 16, edge );
+		}
+	}
+#endif
 	if (cg.time < neonFlashUntil) {
 		vec4_t c;
 		float fade = (float)(neonFlashUntil - cg.time) / 420.0f;
@@ -1703,37 +1726,84 @@ static float CG_DrawNeonWave(float y) {
 		y += SMALLCHAR_HEIGHT + 4;
 	}
 
-	// Ghost kit HUD (g_neonwave_ghost 1)
+	// Ghost kit HUD (g_neonwave_ghost 1) — playerstate, not server cvars
 	{
-		char gbuf[8], ebuf[8], cbuf[16], stbuf[32];
-		int ghostOn, energy, cloakms;
+		char gbuf[8], pip[16];
+		int ghostOn, energy, cds, st, empS, lockS, nukeS, cloakS, stCode, nukeSec;
+		int barW, px;
+		vec4_t gcol = {0.2f, 0.85f, 1.0f, 1.0f};
+		vec4_t ready = {0.2f, 0.85f, 1.0f, 0.95f};
+		vec4_t cool = {1.0f, 0.45f, 0.12f, 0.95f};
+		vec4_t barBg = {0.0f, 0.0f, 0.0f, 0.45f};
+		vec4_t barFg = {0.15f, 0.7f, 1.0f, 0.85f};
+		vec4_t warn = {1.0f, 0.35f, 0.1f, 1.0f};
 		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
 		ghostOn = atoi( gbuf );
-		if ( ghostOn ) {
-			vec4_t gcol = {0.2f, 0.85f, 1.0f, 1.0f};
-			vec4_t barBg = {0.0f, 0.0f, 0.0f, 0.45f};
-			vec4_t barFg = {0.15f, 0.7f, 1.0f, 0.85f};
-			int barW;
-			trap_Cvar_VariableStringBuffer( "g_ghost_energy", ebuf, sizeof(ebuf) );
-			trap_Cvar_VariableStringBuffer( "g_ghost_cloakms", cbuf, sizeof(cbuf) );
-			trap_Cvar_VariableStringBuffer( "g_ghost_status", stbuf, sizeof(stbuf) );
-			energy = atoi( ebuf );
-			cloakms = atoi( cbuf );
+		if ( ghostOn && cg.snap ) {
+			energy = cg.snap->ps.stats[STAT_GHOST_ENERGY];
+			cds = cg.snap->ps.stats[STAT_GHOST_CDS];
+			st = cg.snap->ps.stats[STAT_GHOST_ST];
 			if ( energy < 0 ) energy = 0;
 			if ( energy > 100 ) energy = 100;
-			CG_FillRect( 16, 420, 120, 10, barBg );
-			barW = (int)( 120 * energy / 100 );
+			empS = cds & 255;
+			lockS = ( cds >> 8 ) & 255;
+			nukeS = ( cds >> 16 ) & 255;
+			cloakS = ( cds >> 24 ) & 255;
+			stCode = st & 255;
+			nukeSec = ( st >> 8 ) & 255;
+			CG_FillRect( 16, 412, 120, 10, barBg );
+			barW = 120 * energy / 100;
 			if ( barW > 0 ) {
-				CG_FillRect( 16, 420, barW, 10, barFg );
+				CG_FillRect( 16, 412, barW, 10, barFg );
 			}
-			Com_sprintf( s, sizeof(s), "GHOST %i  J cloak  H emp  N nuke", energy );
-			CG_DrawSmallStringColor( 16, 432, s, gcol );
-			if ( stbuf[0] ) {
-				vec4_t warn = {1.0f, 0.35f, 0.1f, 1.0f};
-				w = CG_DrawStrlen( stbuf ) * SMALLCHAR_WIDTH;
-				CG_DrawSmallStringColor( 320 - w/2, 400, stbuf, warn );
-			} else if ( cloakms > 0 ) {
-				CG_DrawSmallStringColor( 16, 444, "CLOAKED", gcol );
+			Com_sprintf( s, sizeof(s), "GHOST %i", energy );
+			CG_DrawSmallStringColor( 16, 424, s, gcol );
+			px = 16;
+			if ( cloakS > 0 ) {
+				Com_sprintf( pip, sizeof(pip), "J%i", cloakS );
+				CG_DrawSmallStringColor( px, 440, pip, gcol );
+			} else {
+				CG_DrawSmallStringColor( px, 440, "J", ready );
+			}
+			px += 40;
+			if ( empS > 0 ) {
+				Com_sprintf( pip, sizeof(pip), "H%i", empS );
+				CG_DrawSmallStringColor( px, 440, pip, cool );
+			} else {
+				CG_DrawSmallStringColor( px, 440, "H", ready );
+			}
+			px += 40;
+			if ( lockS > 0 ) {
+				Com_sprintf( pip, sizeof(pip), "K%i", lockS );
+				CG_DrawSmallStringColor( px, 440, pip, cool );
+			} else {
+				CG_DrawSmallStringColor( px, 440, "K", ready );
+			}
+			px += 40;
+			if ( nukeS > 0 ) {
+				Com_sprintf( pip, sizeof(pip), "N%i", nukeS );
+				CG_DrawSmallStringColor( px, 440, pip, cool );
+			} else {
+				CG_DrawSmallStringColor( px, 440, "N", ready );
+			}
+			s[0] = 0;
+			if ( stCode == 1 ) {
+				Q_strncpyz( s, "CLOAKED", sizeof(s) );
+			} else if ( stCode == 2 ) {
+				Q_strncpyz( s, "AMBUSH", sizeof(s) );
+			} else if ( stCode == 3 ) {
+				Q_strncpyz( s, "SCANNING", sizeof(s) );
+			} else if ( stCode == 4 ) {
+				Q_strncpyz( s, "DETECTED", sizeof(s) );
+			} else if ( stCode == 5 ) {
+				Q_strncpyz( s, "DESIGNATING", sizeof(s) );
+			} else if ( stCode == 6 ) {
+				Com_sprintf( s, sizeof(s), "NUKE %i", nukeSec );
+			}
+			if ( s[0] ) {
+				w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor( 320 - w/2, 396, s,
+					( stCode == 1 || stCode == 2 ) ? gcol : warn );
 			}
 		}
 	}
@@ -3582,6 +3652,37 @@ CROSSHAIR
 ================================================================================
  */
 
+#ifdef NEONARENA_MOD
+static void CG_DrawGhostSnipeScope( void ) {
+	vec4_t cyan, dim, edge;
+	int cx, cy;
+	cyan[0] = 0.2f; cyan[1] = 0.92f; cyan[2] = 1.0f; cyan[3] = 0.95f;
+	dim[0] = 0.0f; dim[1] = 0.02f; dim[2] = 0.05f; dim[3] = 0.28f;
+	edge[0] = 0.0f; edge[1] = 0.01f; edge[2] = 0.03f; edge[3] = 0.58f;
+	cx = 320;
+	cy = 240;
+	CG_FillRect( 0, 0, 640, 64, edge );
+	CG_FillRect( 0, 416, 640, 64, edge );
+	CG_FillRect( 0, 0, 80, 480, edge );
+	CG_FillRect( 560, 0, 80, 480, edge );
+	CG_FillRect( 0, 0, 640, 480, dim );
+	if ( cgs.media.neonVignetteShader ) {
+		trap_R_SetColor( dim );
+		CG_DrawPic( 0, 0, 640, 480, cgs.media.neonVignetteShader );
+		trap_R_SetColor( NULL );
+	}
+	CG_FillRect( cx - 36, cy, 28, 1, cyan );
+	CG_FillRect( cx + 8, cy, 28, 1, cyan );
+	CG_FillRect( cx, cy - 36, 1, 28, cyan );
+	CG_FillRect( cx, cy + 8, 1, 28, cyan );
+	CG_FillRect( cx, cy, 2, 2, cyan );
+	CG_FillRect( cx - 2, cy - 52, 5, 1, cyan );
+	CG_FillRect( cx - 2, cy + 52, 5, 1, cyan );
+	CG_FillRect( cx - 52, cy - 2, 1, 5, cyan );
+	CG_FillRect( cx + 52, cy - 2, 1, 5, cyan );
+}
+#endif
+
 /*
 =================
 CG_DrawCrosshair
@@ -3608,6 +3709,17 @@ static void CG_DrawCrosshair(void) {
 	if (cg.renderingThirdPerson) {
 		return;
 	}
+
+#ifdef NEONARENA_MOD
+	{
+		char gbuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+		if ( atoi( gbuf ) && cg.zoomed ) {
+			CG_DrawGhostSnipeScope();
+			return;
+		}
+	}
+#endif
 
 	// set color based on health
 	if (cg_crosshairHealth.integer) {

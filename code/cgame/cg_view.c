@@ -571,6 +571,15 @@ void CG_ZoomDown_f( void ) {
 	}
 	cg.zoomed = qtrue;
 	cg.zoomTime = cg.time;
+#ifdef NEONARENA_MOD
+	{
+		char gbuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+		if ( atoi( gbuf ) ) {
+			trap_S_StartLocalSound( cgs.media.teleInSound, CHAN_LOCAL );
+		}
+	}
+#endif
 }
 
 void CG_ZoomUp_f( void ) { 
@@ -579,6 +588,15 @@ void CG_ZoomUp_f( void ) {
 	}
 	cg.zoomed = qfalse;
 	cg.zoomTime = cg.time;
+#ifdef NEONARENA_MOD
+	{
+		char gbuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+		if ( atoi( gbuf ) ) {
+			trap_S_StartLocalSound( cgs.media.wearOffSound, CHAN_LOCAL );
+		}
+	}
+#endif
 }
 
 

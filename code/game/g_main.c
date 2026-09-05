@@ -238,6 +238,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_ghost_cloakms", "0", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_empcd", "0", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_nukecd", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "g_ghost_lockcd", "0", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_status", "", CVAR_ROM, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },

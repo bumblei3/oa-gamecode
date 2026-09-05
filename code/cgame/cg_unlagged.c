@@ -146,7 +146,22 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}
 
 			// draw a rail trail
+#ifdef NEONARENA_MOD
+			{
+				char gbuf[8];
+				int st;
+				trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+				st = cg.predictedPlayerState.stats[STAT_GHOST_ST] & 255;
+				if ( atoi( gbuf ) && ( cg.predictedPlayerState.powerups[PW_INVIS] > cg.time
+						|| st == 2 ) ) {
+					cg.railTrailHot = qtrue;
+				}
+			}
+#endif
 			CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos );
+#ifdef NEONARENA_MOD
+			cg.railTrailHot = qfalse;
+#endif
 			//Com_Printf( "Predicted rail trail\n" );
 
 			// explosion at end if not SURF_NOIMPACT

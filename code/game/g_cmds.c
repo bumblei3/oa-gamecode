@@ -2414,6 +2414,7 @@ commands_t cmds[ ] =
 	{ "waveselect_down", 0, Cmd_NeonWaveSelectDown_f },
 	{ "cloak", CMD_LIVING, Cmd_GhostCloak_f },
 	{ "emp", CMD_LIVING, Cmd_GhostEmp_f },
+	{ "lockdown", CMD_LIVING, Cmd_GhostLockdown_f },
 	{ "nuke", CMD_LIVING, Cmd_GhostNuke_f },
 #endif
 	// normal commands

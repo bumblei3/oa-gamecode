@@ -602,6 +602,9 @@ typedef struct {
 	qboolean	zoomed;
 	int			zoomTime;
 	float		zoomSensitivity;
+#ifdef NEONARENA_MOD
+	qboolean	railTrailHot;
+#endif
 
 	// information screen text during loading
 	char		infoScreenText[MAX_STRING_CHARS];

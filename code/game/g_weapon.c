@@ -552,10 +552,20 @@ void weapon_railgun_fire (gentity_t *ent)
 	int			passent;
 	int			maxHits;
 	gentity_t	*unlinkedEntities[MAX_RAIL_UNLINK];
+#ifdef NEONARENA_MOD
+	int			ambush;
+#endif
 
 	damage = 100 * s_quadFactor;
 	if(g_instantgib.integer)
 		damage = 800;
+#ifdef NEONARENA_MOD
+	ambush = 0;
+	if ( NW_GhostAmbush( ent ) ) {
+		damage *= 2;
+		ambush = 1;
+	}
+#endif
 
 	VectorMA (muzzle, 8192, forward, end);
 
@@ -656,6 +666,11 @@ void weapon_railgun_fire (gentity_t *ent)
 		tent->s.eventParm = DirToByte( trace.plane.normal );
 	}
 	tent->s.clientNum = ent->s.clientNum;
+#ifdef NEONARENA_MOD
+	if ( ambush ) {
+		tent->s.generic1 = 1;
+	}
+#endif
 
 #ifdef NEONARENA_MOD
 	if ( g_gametype.integer == GT_NEONWAVE && ent->client
@@ -975,6 +990,9 @@ void FireWeapon( gentity_t *ent )
 		ent->client->spawnprotected = qfalse;
 
 #ifdef NEONARENA_MOD
+	if ( NW_GhostLocked( ent ) ) {
+		return;
+	}
 	NW_GhostBreakCloak( ent );
 #endif
 

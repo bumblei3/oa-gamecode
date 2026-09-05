@@ -1225,7 +1225,13 @@ void CG_EntityEvent(centity_t *cent, vec3_t position) {
 
 
 				// draw a rail trail, because it wasn't predicted
+#ifdef NEONARENA_MOD
+				cg.railTrailHot = ( es->generic1 == 1 );
+#endif
 				CG_RailTrail(ci, es->origin2, es->pos.trBase);
+#ifdef NEONARENA_MOD
+				cg.railTrailHot = qfalse;
+#endif
 
 				// if the end was on a nomark surface, don't make an explosion
 				if (es->eventParm != 255) {

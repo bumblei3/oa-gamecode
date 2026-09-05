@@ -1864,11 +1864,10 @@ void ClientSpawn(gentity_t *ent) {
 	if(g_gametype.integer != GT_ELIMINATION && g_gametype.integer != GT_CTF_ELIMINATION && g_gametype.integer != GT_LMS && !g_elimination_allgametypes.integer)
 	{
 #ifdef NEONARENA_MOD
-		// NeonWave: railgun + lightning, or Ghost kit (rail only)
+		// NeonWave: railgun + lightning, or Ghost kit (rail only, no gauntlet)
 		if ( NW_GhostActive() ) {
-			client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN ) | ( 1 << WP_GAUNTLET );
+			client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN );
 			client->ps.ammo[WP_RAILGUN] = 30;
-			client->ps.ammo[WP_GAUNTLET] = -1;
 			client->ps.weapon = WP_RAILGUN;
 			NW_GhostSpawn( ent );
 		} else {
