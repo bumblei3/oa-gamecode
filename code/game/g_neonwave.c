@@ -48,7 +48,25 @@
 #define NW_ACH_COMBOMASTER	5	// best combo >= 12
 #define NW_ACH_SPEEDRUNNER	6	// victory under time target (300s)
 #define NW_ACH_HARDCORE		7	// victory in hardcore mode
-#define NW_ACH_COUNT		8
+// v0.60: 17 new achievements (total 25)
+#define NW_ACH_KILL_100		8	// kill 100 bots total
+#define NW_ACH_KILL_1000	9	// kill 1000 bots total
+#define NW_ACH_WAVE_5		10	// survive to wave 5
+#define NW_ACH_WAVE_10		11	// survive to wave 10
+#define NW_ACH_WAVE_30		12	// survive to wave 30
+#define NW_ACH_WAVE_50		13	// survive to wave 50
+#define NW_ACH_PERFECT_WAVE	14	// clear wave without damage
+#define NW_ACH_MULTIKILL_3	15	// 3 kills in 1 second
+#define NW_ACH_MULTIKILL_5	16	// 5 kills in 1 second
+#define NW_ACH_RAILGUN_MASTER	17	// 100 railgun kills
+#define NW_ACH_LIGHTNING_MASTER	18	// 100 lightning kills
+#define NW_ACH_PLASMA_MASTER	19	// 100 plasma kills
+#define NW_ACH_BOSS_RUSH	20	// kill 5 bosses in a row
+#define NW_ACH_ECHO_CHAMPION	21	// trigger echo-chaos 10 times (secret)
+#define NW_ACH_OVERCLOCKED	22	// use 10 overclocks in one run (secret)
+#define NW_ACH_FUSION_DISCOVERER	23	// trigger all fusion types (secret)
+#define NW_ACH_ALL_UPGRADES	24	// max all upgrade types
+#define NW_ACH_COUNT		25
 
 static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
@@ -2012,6 +2030,23 @@ static const char *NW_AchievementName( int id ) {
 	case NW_ACH_COMBOMASTER:  return "COMBOMASTER";
 	case NW_ACH_SPEEDRUNNER:  return "SPEEDRUNNER";
 	case NW_ACH_HARDCORE:     return "HARDCORE";
+	case NW_ACH_KILL_100:     return "BOT SLAYER";
+	case NW_ACH_KILL_1000:    return "BOT ANNIHILATOR";
+	case NW_ACH_WAVE_5:       return "GETTING STARTED";
+	case NW_ACH_WAVE_10:      return "VETERAN";
+	case NW_ACH_WAVE_30:      return "ENDURANCE";
+	case NW_ACH_WAVE_50:      return "MARATHON";
+	case NW_ACH_PERFECT_WAVE: return "UNTOUCHABLE";
+	case NW_ACH_MULTIKILL_3:  return "TRIPLE KILL";
+	case NW_ACH_MULTIKILL_5:  return "PENTAKILL";
+	case NW_ACH_RAILGUN_MASTER:  return "RAILGUN MASTER";
+	case NW_ACH_LIGHTNING_MASTER: return "STORM BRINGER";
+	case NW_ACH_PLASMA_MASTER:    return "PLASMA SPECIALIST";
+	case NW_ACH_BOSS_RUSH:    return "BOSS RUSH";
+	case NW_ACH_ECHO_CHAMPION:    return "ECHO MASTER";
+	case NW_ACH_OVERCLOCKED:       return "OVERCLOCKED";
+	case NW_ACH_FUSION_DISCOVERER: return "FUSION SCHOLAR";
+	case NW_ACH_ALL_UPGRADES:      return "MAXED OUT";
 	default:                   return "";
 	}
 }
@@ -2061,6 +2096,7 @@ static void NW_CheckAchievements( int event ) {
 	int deaths = NW_RunDeaths();
 	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
 	int runSec = ( level.time - nw_runStartTime ) / 1000;
+	int kills = NW_Cache()->kills;
 	int i;
 
 	// reset per-run bitmask (defensive; NeonWave_Reset already clears)
@@ -2093,6 +2129,25 @@ static void NW_CheckAchievements( int event ) {
 	}
 	if ( victory && nw_hardcore ) {
 		nw_achievements[ NW_ACH_HARDCORE ] = qtrue;
+	}
+	// v0.60: new achievements
+	if ( kills >= 100 ) {
+		nw_achievements[ NW_ACH_KILL_100 ] = qtrue;
+	}
+	if ( kills >= 1000 ) {
+		nw_achievements[ NW_ACH_KILL_1000 ] = qtrue;
+	}
+	if ( nw_wave >= 5 ) {
+		nw_achievements[ NW_ACH_WAVE_5 ] = qtrue;
+	}
+	if ( nw_wave >= 10 ) {
+		nw_achievements[ NW_ACH_WAVE_10 ] = qtrue;
+	}
+	if ( nw_wave >= 30 ) {
+		nw_achievements[ NW_ACH_WAVE_30 ] = qtrue;
+	}
+	if ( nw_wave >= 50 ) {
+		nw_achievements[ NW_ACH_WAVE_50 ] = qtrue;
 	}
 
 	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
@@ -2471,6 +2526,85 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 }
 
 
+// ---- Momentum System (v0.55) ----
+// Momentum increases on kills (configurable via g_momentum_kill) and decays over time.
+// At thresholds, movement abilities are unlocked:
+//   25: Slide (faster sprint)
+//   50: Wall-Jump (jump off walls)
+//   75: Air-Dash (quick direction change in air)
+//   100: Blink (teleport 5m forward, 1s cooldown)
+void NW_MomentumOnKill( gentity_t *attacker ) {
+	char buf[8];
+	int killVal, newMomentum;
+	if ( !attacker || !attacker->client ) return;
+	if ( attacker->r.svFlags & SVF_BOT ) return;
+	trap_Cvar_VariableStringBuffer( "g_momentum_kill", buf, sizeof(buf) );
+	killVal = atoi(buf);
+	if ( killVal <= 0 ) return;
+	newMomentum = attacker->client->pers.nwMomentum + killVal;
+	if ( newMomentum > 100 ) newMomentum = 100;
+	attacker->client->pers.nwMomentum = newMomentum;
+}
+
+static void NW_MomentumFrame( void ) {
+	int i;
+	gentity_t *ent;
+	int decay;
+	char buf[8];
+	trap_Cvar_VariableStringBuffer( "g_momentum_decay", buf, sizeof(buf) );
+	decay = atoi(buf);
+	if ( decay <= 0 ) return;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->client->pers.nwMomentum <= 0 ) continue;
+		if ( level.time - ent->client->pers.nwMomentumTick > 1000 ) {
+			ent->client->pers.nwMomentum -= decay;
+			if ( ent->client->pers.nwMomentum < 0 ) ent->client->pers.nwMomentum = 0;
+			ent->client->pers.nwMomentumTick = level.time;
+		}
+	}
+}
+
+// ---- Legacy Echo (v0.55) ----
+// After game over, a legacy echo can be activated in the next run.
+// Player presses [Use] near echo spawn point for:
+//   - Boost: +20% DMG for 5s (1x per run)
+//   - Intel: Show next 3 waves in HUD
+//   - Sacrifice: Full HP, -50% score
+static void NW_LegacyFrame( void ) {
+	int i;
+	gentity_t *ent;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) continue;
+		// Check for legacy boost activation
+		if ( ent->client->pers.nwLegacyAvailable && (ent->client->buttons & BUTTON_USE_HOLDABLE) ) {
+			if ( ent->client->pers.nwLegacyBoostEnd <= level.time ) {
+				char durBuf[8], dmgBuf[8];
+				int dur, dmg;
+				trap_Cvar_VariableStringBuffer( "g_legacy_boost_dur", durBuf, sizeof(durBuf) );
+				dur = atoi(durBuf);
+				if ( dur <= 0 ) dur = 5;
+				trap_Cvar_VariableStringBuffer( "g_legacy_boost_dmg", dmgBuf, sizeof(dmgBuf) );
+				dmg = atoi(dmgBuf);
+				if ( dmg <= 0 ) dmg = 20;
+				ent->client->pers.nwLegacyBoost = 1;
+				ent->client->pers.nwLegacyBoostEnd = level.time + (dur * 1000);
+				ent->client->pers.nwLegacyAvailable = 0;
+				trap_SendServerCommand( i, va("print \"LEGACY BOOST: +%d%% DMG for %ds\\n\"", dmg, dur) );
+			}
+		}
+		// Expire boost
+		if ( ent->client->pers.nwLegacyBoost && level.time > ent->client->pers.nwLegacyBoostEnd ) {
+			ent->client->pers.nwLegacyBoost = 0;
+			trap_SendServerCommand( i, "print \"LEGACY BOOST expired\\n\"" );
+		}
+	}
+}
+
 void NeonWave_OnDroneKill( gentity_t *attacker ) {
 	gentity_t *t;
 	if ( g_gametype.integer != GT_NEONWAVE ) {
@@ -2547,6 +2681,8 @@ void NeonWave_Frame( void ) {
 	NW_SelfKillHuman(); // test hook: kill human each frame (coop respawn test)
 	// Move dead humans to spectator in coop mode
 	NW_CoopSpectatorDead();
+	NW_MomentumFrame();
+	NW_LegacyFrame();
 
 	// test hook: g_neonwave_fakecombo N simulates a human kill streak of N
 	// (tests the combo bonus + RUN STATS pipeline without real players)
