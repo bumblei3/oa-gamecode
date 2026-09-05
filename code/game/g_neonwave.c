@@ -37,7 +37,8 @@
 #define NW_MOD_FROST		12	// slowed player (g_speed), frosty drones
 #define NW_MOD_CHAOS		13	// chaotic spawns: random skill + spawn delay
 #define NW_MOD_MIMIC		14	// drones copy a random upgrade value from a random human
-#define NW_MOD_POOL_SIZE	15
+#define NW_MOD_SHIELD		15	// v0.70: player gets temporary invulnerability at wave start
+#define NW_MOD_POOL_SIZE	16
 
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
@@ -1510,6 +1511,7 @@ static const char *NW_ModifierName( int mod ) {
 	case NW_MOD_FROST:		return "FROST";
 	case NW_MOD_CHAOS:		return "CHAOS";
 	case NW_MOD_MIMIC:		return "MIMIC";
+	case NW_MOD_SHIELD:		return "SHIELD";
 	default:			return "";
 	}
 }
@@ -1653,6 +1655,11 @@ void NeonWave_StartWave( int num ) {
 		}
 		if ( NW_ModActive( NW_MOD_OVERSHIELD ) ) {
 			armor = 50;
+		}
+		if ( NW_ModActive( NW_MOD_SHIELD ) ) {
+			// Temporary invulnerability at wave start
+			trap_Cvar_Set( "g_neonwave_shieldactive", "1" );
+			trap_Cvar_Set( "g_neonwave_shieldtime", "3000" ); // 3 seconds
 		}
 		if ( NW_ModActive( NW_MOD_VAMPIRE ) ) {
 			vampheal = 4;
