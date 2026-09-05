@@ -156,7 +156,7 @@ void NW_GhostBreakCloak( gentity_t *ent ) {
 	}
 	if ( GH_Cloaked( ent ) ) {
 		gh_ambushUntil[id] = level.time + GH_AMBUSH_MS;
-		GH_Sound( ent, "sound/items/wearoff.wav" );
+		GH_Sound( ent, "sound/ghost_cloak_off.wav" );
 	}
 	ent->client->ps.powerups[PW_INVIS] = 0;
 	if ( gh_paintUntil[id] > level.time ) {
@@ -418,7 +418,7 @@ void Cmd_GhostCloak_f( gentity_t *ent ) {
 	gh_lastRegen[id] = level.time;
 	ent->client->ps.powerups[PW_INVIS] = level.time + 3600000;
 	trap_SendServerCommand( id, "cp \"CLOAKED\n\"" );
-	GH_Sound( ent, "sound/items/protect3.wav" );
+	GH_Sound( ent, "sound/ghost_cloak_on.wav" );
 }
 
 void Cmd_GhostEmp_f( gentity_t *ent ) {
@@ -455,7 +455,7 @@ void Cmd_GhostEmp_f( gentity_t *ent ) {
 	VectorScale( forward, GH_EMP_SPEED, bolt->s.pos.trDelta );
 	SnapVector( bolt->s.pos.trDelta );
 	trap_SendServerCommand( id, "cp \"EMP\n\"" );
-	GH_Sound( ent, "sound/weapons/plasma/hyprbf1a.wav" );
+	GH_Sound( ent, "sound/ghost_emp.wav" );
 }
 
 static void GH_LockRefund( gentity_t *owner ) {
@@ -491,7 +491,7 @@ static void GH_LockTarget( gentity_t *owner, gentity_t *targ ) {
 	targ->s.constantLight = GH_LOCK_LIGHT;
 	GH_LockBeam( targ );
 	trap_SendServerCommand( -1, "cp \"LOCKED\n\"" );
-	GH_Sound( owner, "sound/weapons/lightning/lg_hit.wav" );
+	GH_Sound( owner, "sound/ghost_lock.wav" );
 	if ( GH_IsTurret( targ ) ) {
 		targ->timestamp = level.time + GH_LOCK_MS;
 		G_Printf( "Ghost: lockdown on Detector Turret\n" );
@@ -605,7 +605,7 @@ void Cmd_GhostNuke_f( gentity_t *ent ) {
 	gh_lastNukeSec[id] = 0;
 	gh_lastLaser[id] = 0;
 	trap_SendServerCommand( -1, "cp \"DESIGNATING — STAND STILL\n\"" );
-	GH_Sound( ent, "sound/weapons/bfg/bfg_fire.wav" );
+	GH_Sound( ent, "sound/ghost_nuke.wav" );
 }
 
 static void GH_Detonate( gentity_t *ent, int id ) {
@@ -669,6 +669,7 @@ static void GH_ScanCloak( gentity_t *det, vec3_t fwd, int *lastWarn ) {
 		if ( !gh_inCone[h] && gh_coneStart[h] == 0 ) {
 			gh_coneStart[h] = level.time;
 			trap_SendServerCommand( h, "cp \"SCANNING\n\"" );
+			GH_Sound( hum, "sound/ghost_scan.wav" );
 		}
 		gh_inCone[h] = 1;
 		GH_WarnLaser( det, hum, lastWarn );
