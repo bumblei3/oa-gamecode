@@ -918,28 +918,6 @@ void NeonWave_OnDroneKill( gentity_t *attacker );
 void NW_MomentumOnKill( gentity_t *attacker );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
-
-// Replay event structure (defined in replay_recorder.c)
-typedef struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-} replayEvent_t;
-
-void G_ReplayStart(void);
-void G_ReplayStop(void);
-void G_ReplayRecord(int type, float x, float y, unsigned char buttons);
-qboolean G_ReplayIsRecording(void);
-int G_ReplayGetCount(void);
-void G_ReplaySave(const char *filename);
-void G_ReplayLoad(const char *filename);
-void G_ReplayPlayStart(void);
-void G_ReplayPlayStop(void);
-qboolean G_ReplayIsPlaying(void);
-qboolean G_ReplayGetNext(replayEvent_t *out);
-void G_ReplayReset(void);
-void G_ReplayCmd_f(void);
 #define NW_PERK_PIERCE		1
 #define NW_PERK_CHAIN		2
 #define NW_PERK_DASH		3
@@ -1140,6 +1118,30 @@ extern vmCvar_t g_respawntime;
 extern vmCvar_t g_inactivity;
 extern vmCvar_t g_debugMove;
 extern vmCvar_t g_debugAlloc;
+
+#ifdef NEONARENA_MOD
+// Replay event structure (defined in replay_recorder.c)
+typedef struct replayEvent_t {
+    unsigned int timestampMs;
+    unsigned char type;
+    float x, y;
+    unsigned char buttons;
+} replayEvent_t;
+
+void G_ReplayStart(void);
+void G_ReplayStop(void);
+void G_ReplayRecord(int type, float x, float y, unsigned char buttons);
+qboolean G_ReplayIsRecording(void);
+int G_ReplayGetCount(void);
+void G_ReplaySave(const char *filename);
+void G_ReplayLoad(const char *filename);
+void G_ReplayPlayStart(void);
+void G_ReplayPlayStop(void);
+qboolean G_ReplayIsPlaying(void);
+qboolean G_ReplayGetNext(replayEvent_t *out);
+void G_ReplayReset(void);
+void G_ReplayCmd_f(void);
+#endif
 extern vmCvar_t g_debugDamage;
 extern vmCvar_t g_weaponRespawn;
 extern vmCvar_t g_weaponTeamRespawn;
