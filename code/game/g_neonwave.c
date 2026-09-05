@@ -8,7 +8,7 @@
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT		7	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER
+#define NW_BOSS_COUNT		8	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER
 
 // Test hooks (used by CI smoke test):
 //   g_neonwave_autostart 1   -> waves start without a human player (headless test)
@@ -699,6 +699,7 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 #define NW_BOSS_WARDEN		5	// v0.15: teleport-strikes the player's zone + brief armor phase
 #define NW_BOSS_BERSERKER	6	// v0.40: slow, huge HP, MG spam — enrages below 30% HP
 #define NW_BOSS_TELEPORTER	7	// v0.41: teleports away on hit, evasive boss
+#define NW_BOSS_HEALER		8	// v0.70: heals nearby bots, low HP, no direct attack
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -734,6 +735,7 @@ static const char *NW_BossName( int type ) {
 	case NW_BOSS_WARDEN:	return "WARDEN";
 	case NW_BOSS_BERSERKER:	return "BERSERKER";
 	case NW_BOSS_TELEPORTER:	return "TELEPORTER";
+	case NW_BOSS_HEALER:	return "HEALER";
 	default:		return "SNIPER";
 	}
 }
@@ -756,6 +758,9 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_TELEPORTER ) {
 		hc = 350; // 3.5x — teleporter: evasive, moderate HP
+	}
+	if ( type == NW_BOSS_HEALER ) {
+		hc = 300; // 3x — healer: fragile, heals nearby bots
 	}
 	// wave scaling: bosses get +20% HP per wave past boss wave 10
 	if ( nw_wave > NW_BOSS_WAVE ) {
