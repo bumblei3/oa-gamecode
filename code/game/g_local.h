@@ -920,12 +920,12 @@ qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
 
 // Replay event structure (used by G_ReplayGetNext)
-struct replayEvent {
+typedef struct replayEvent {
     unsigned int timestampMs;
     unsigned char type;
     float x, y;
     unsigned char buttons;
-};
+} replayEvent_t;
 
 void G_ReplayStart(void);
 void G_ReplayStop(void);
@@ -937,7 +937,7 @@ void G_ReplayLoad(const char *filename);
 void G_ReplayPlayStart(void);
 void G_ReplayPlayStop(void);
 qboolean G_ReplayIsPlaying(void);
-qboolean G_ReplayGetNext(struct replayEvent *out);
+qboolean G_ReplayGetNext(replayEvent_t *out);
 void G_ReplayReset(void);
 void G_ReplayCmd_f(void);
 #define NW_PERK_PIERCE		1

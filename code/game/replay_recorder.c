@@ -10,18 +10,18 @@
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
 
-struct replayHeader {
+typedef struct replayHeader {
     unsigned int magic;
     unsigned short version;
     unsigned short reserved;
     unsigned int eventCount;
     unsigned int durationMs;
     char mapName[64];
-};
+} replayHeader_t;
 
 // replayEvent is defined in g_local.h
 
-static struct replayEvent replayEvents[REPLAY_MAX_EVENTS];
+static replayEvent_t replayEvents[REPLAY_MAX_EVENTS];
 static int replayCount = 0;
 static qboolean replayRecording = qfalse;
 static qboolean replayPlaying = qfalse;
@@ -50,7 +50,7 @@ void G_ReplayStop(void) {
 void G_ReplayRecord(int type, float x, float y, unsigned char buttons) {
     if (!replayRecording || replayCount >= REPLAY_MAX_EVENTS) return;
 
-    struct replayEvent *e = &replayEvents[replayCount];
+    replayEvent_t *e = &replayEvents[replayCount];
     e->timestampMs = trap_Milliseconds() - replayStartTime;
     e->type = (unsigned char)type;
     e->x = x;
@@ -83,7 +83,7 @@ void G_ReplaySave(const char *filename) {
         return;
     }
 
-    struct replayHeader header;
+    replayHeader_t header;
     header.magic = REPLAY_MAGIC;
     header.version = REPLAY_VERSION;
     header.reserved = 0;
@@ -93,7 +93,7 @@ void G_ReplaySave(const char *filename) {
     Q_strncpyz(header.mapName, mapNameBuf, sizeof(header.mapName));
 
     trap_FS_Write(&header, sizeof(header), f);
-    trap_FS_Write(replayEvents, sizeof(struct replayEvent) * replayCount, f);
+    trap_FS_Write(replayEvents, sizeof(replayEvent_t) * replayCount, f);
     trap_FS_FCloseFile(f);
 
     G_Printf("NeonWave: Replay saved to %s (%d events)\n", filename, replayCount);
@@ -102,7 +102,7 @@ void G_ReplaySave(const char *filename) {
 // Load replay from file
 void G_ReplayLoad(const char *filename) {
     fileHandle_t f;
-    struct replayHeader header;
+    replayHeader_t header;
 
     if (trap_FS_FOpenFile(filename, &f, FS_READ) <= 0) {
         G_Printf("NeonWave: Replay load failed — cannot open %s\n", filename);
@@ -118,7 +118,7 @@ void G_ReplayLoad(const char *filename) {
 
     replayCount = header.eventCount;
     if (replayCount > REPLAY_MAX_EVENTS) replayCount = REPLAY_MAX_EVENTS;
-    trap_FS_Read(replayEvents, sizeof(struct replayEvent) * replayCount, f);
+    trap_FS_Read(replayEvents, sizeof(replayEvent_t) * replayCount, f);
     trap_FS_FCloseFile(f);
 
     G_Printf("NeonWave: Replay loaded from %s (%d events)\n", filename, replayCount);
@@ -145,7 +145,7 @@ qboolean G_ReplayIsPlaying(void) {
 
 // Get next event during playback
 // Returns qtrue if event was retrieved
-qboolean G_ReplayGetNext(struct replayEvent *out) {
+qboolean G_ReplayGetNext(replayEvent_t *out) {
     if (!replayPlaying || replayPlaybackIdx >= replayCount) {
         replayPlaying = qfalse;
         return qfalse;
