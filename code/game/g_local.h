@@ -919,13 +919,8 @@ void NW_MomentumOnKill( gentity_t *attacker );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
 
-// Replay event structure (used by G_ReplayGetNext)
-typedef struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-} replayEvent_t;
+// Replay event structure (defined in replay_recorder.c)
+struct replayEvent;
 
 void G_ReplayStart(void);
 void G_ReplayStop(void);
