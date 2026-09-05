@@ -4,13 +4,11 @@
 
 #include "g_local.h"
 
-// Structs defined outside #ifdef for q3lcc compatibility
-typedef struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-} replayEvent_t;
+#ifdef NEONARENA_MOD
+
+#define REPLAY_MAGIC 0x4E525059
+#define REPLAY_VERSION 1
+#define REPLAY_MAX_EVENTS 32768
 
 typedef struct replayHeader {
     unsigned int magic;
@@ -20,12 +18,6 @@ typedef struct replayHeader {
     unsigned int durationMs;
     char mapName[64];
 } replayHeader_t;
-
-#ifdef NEONARENA_MOD
-
-#define REPLAY_MAGIC 0x4E525059
-#define REPLAY_VERSION 1
-#define REPLAY_MAX_EVENTS 32768
 
 static replayEvent_t replayEvents[REPLAY_MAX_EVENTS];
 static int replayCount = 0;
