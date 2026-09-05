@@ -9,7 +9,7 @@
 
 #ifdef NEONARENA_MOD
 
-#define REPLAY_MAGIC 'NRPY'
+#define REPLAY_MAGIC 0x4E525059  // 'NRPY' as hex
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
 
@@ -91,14 +91,13 @@ int G_ReplayGetCount(void) {
 // Save replay to file
 void G_ReplaySave(const char *filename) {
     fileHandle_t f;
-    int len;
+    char mapNameBuf[MAX_CVAR_VALUE_STRING];
     if (replayCount == 0) {
         G_Printf("NeonWave: Replay save failed — no events recorded\n");
         return;
     }
 
-    len = trap_FS_FOpenFile(filename, &f, FS_WRITE);
-    if (!f) {
+    if (trap_FS_FOpenFile(filename, &f, FS_WRITE) <= 0) {
         G_Printf("NeonWave: Replay save failed — cannot open %s\n", filename);
         return;
     }
@@ -109,7 +108,8 @@ void G_ReplaySave(const char *filename) {
     header.reserved = 0;
     header.eventCount = replayCount;
     header.durationMs = replayEvents[replayCount-1].timestampMs;
-    Q_strncpyz(header.mapName, mapname.string, sizeof(header.mapName));
+    trap_Cvar_VariableStringBuffer("mapname", mapNameBuf, sizeof(mapNameBuf));
+    Q_strncpyz(header.mapName, mapNameBuf, sizeof(header.mapName));
 
     trap_FS_Write(&header, sizeof(header), f);
     trap_FS_Write(replayEvents, sizeof(replayEvent_t) * replayCount, f);
@@ -121,11 +121,9 @@ void G_ReplaySave(const char *filename) {
 // Load replay from file
 void G_ReplayLoad(const char *filename) {
     fileHandle_t f;
-    int len;
     replayHeader_t header;
 
-    len = trap_FS_FOpenFile(filename, &f, FS_READ);
-    if (!f) {
+    if (trap_FS_FOpenFile(filename, &f, FS_READ) <= 0) {
         G_Printf("NeonWave: Replay load failed — cannot open %s\n", filename);
         return;
     }
@@ -165,7 +163,7 @@ qboolean G_ReplayIsPlaying(void) {
 }
 
 // Get next event during playback
-// Returns true if event was retrieved
+// Returns qtrue if event was retrieved
 qboolean G_ReplayGetNext(replayEvent_t *out) {
     if (!replayPlaying || replayPlaybackIdx >= replayCount) {
         replayPlaying = qfalse;
@@ -176,7 +174,7 @@ qboolean G_ReplayGetNext(replayEvent_t *out) {
     if (replayPlaybackIdx >= replayCount) {
         replayPlaying = qfalse;
     }
-    return true;
+    return qtrue;
 }
 
 // Reset playback to start
@@ -184,10 +182,8 @@ void G_ReplayReset(void) {
     replayPlaybackIdx = 0;
 }
 
-// Console command: record start
+// Console command: replay control
 void G_ReplayCmd_f(void) {
-    int clientNum = -1;
-    trap_Argv(0, NULL, 0);  // dummy
     if (trap_Argc() < 2) {
         G_Printf("Usage: nw_replay <start|stop|save|load|play|status>\n");
         return;
