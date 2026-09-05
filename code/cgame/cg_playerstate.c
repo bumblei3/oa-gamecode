@@ -303,6 +303,11 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 
 	// hit changes
 	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS] ) {
+#ifdef NEONARENA_MOD
+		if ( cgs.gametype == GT_NEONWAVE ) {
+			CG_NeonHitConfirm( ps->persistant[PERS_SCORE] > ops->persistant[PERS_SCORE] );
+		}
+#endif
 #ifdef MISSIONPACK
 		int health, armor;
 		armor  = ps->persistant[PERS_ATTACKEE_ARMOR] & 0xff;

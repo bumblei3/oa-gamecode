@@ -2038,6 +2038,7 @@ void CG_NeonPerkFxPulse( void );
 float CG_NeonDashFovKick( void );
 void CG_NeonAchievement( const char *name );
 qboolean CG_GhostKit( void );
+void CG_NeonHitConfirm( qboolean isKill );
 #endif
 
 #define	LFX_SMOKEPUFF		1;

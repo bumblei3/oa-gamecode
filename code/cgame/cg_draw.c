@@ -1346,6 +1346,60 @@ CG_DrawNeonWave
 static int neonDashUntil;
 static int neonFlashUntil;
 static vec4_t neonFlashColor;
+static int neonHitUntil;
+static int neonHitKill;
+
+void CG_NeonHitConfirm( qboolean isKill ) {
+	if ( cgs.gametype != GT_NEONWAVE ) {
+		return;
+	}
+	if ( isKill ) {
+		neonHitUntil = cg.time + 220;
+		neonHitKill = 1;
+	} else {
+		if ( neonHitKill && neonHitUntil > cg.time ) {
+			return;
+		}
+		neonHitUntil = cg.time + 150;
+		neonHitKill = 0;
+	}
+}
+
+static void CG_DrawNeonHitMarker( qboolean scope ) {
+	vec4_t c;
+	int cx, cy, s, remain;
+	float a;
+
+	if ( neonHitUntil <= cg.time ) {
+		neonHitKill = 0;
+		return;
+	}
+	remain = neonHitUntil - cg.time;
+	if ( neonHitKill ) {
+		a = (float)remain / 220.0f;
+		c[0] = 1.00f; c[1] = 0.82f; c[2] = 0.12f;
+		s = scope ? 10 : 16;
+	} else {
+		a = (float)remain / 150.0f;
+		c[0] = 0.20f; c[1] = 0.95f; c[2] = 1.00f;
+		s = scope ? 7 : 12;
+	}
+	if ( a > 1.0f ) {
+		a = 1.0f;
+	}
+	c[3] = a;
+	cx = 320;
+	cy = 240;
+	CG_FillRect( cx - s,     cy - s,     6, 2, c );
+	CG_FillRect( cx - s,     cy - s,     2, 6, c );
+	CG_FillRect( cx + s - 6, cy - s,     6, 2, c );
+	CG_FillRect( cx + s - 2, cy - s,     2, 6, c );
+	CG_FillRect( cx - s,     cy + s - 2, 6, 2, c );
+	CG_FillRect( cx - s,     cy + s - 6, 2, 6, c );
+	CG_FillRect( cx + s - 6, cy + s - 2, 6, 2, c );
+	CG_FillRect( cx + s - 2, cy + s - 6, 2, 6, c );
+	CG_FillRect( cx - 1, cy - 1, 2, 2, c );
+}
 
 void CG_NeonPerkFxPulse(void) {
 	char buf[32];
@@ -3674,6 +3728,7 @@ static void CG_DrawGhostSnipeScope( void ) {
 	CG_FillRect( cx, cy - 24, 1, 16, cyan );
 	CG_FillRect( cx, cy + 8, 1, 16, cyan );
 	CG_FillRect( cx, cy, 2, 2, cyan );
+	CG_DrawNeonHitMarker( qtrue );
 }
 #endif
 
@@ -3817,6 +3872,9 @@ static void CG_DrawCrosshair(void) {
 			w, h, 0, 0, 1, 1, hShader);
 
 	trap_R_SetColor( NULL );
+#ifdef NEONARENA_MOD
+	CG_DrawNeonHitMarker( qfalse );
+#endif
 }
 
 /*
