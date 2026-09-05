@@ -1703,6 +1703,41 @@ static float CG_DrawNeonWave(float y) {
 		y += SMALLCHAR_HEIGHT + 4;
 	}
 
+	// Ghost kit HUD (g_neonwave_ghost 1)
+	{
+		char gbuf[8], ebuf[8], cbuf[16], stbuf[32];
+		int ghostOn, energy, cloakms;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
+		ghostOn = atoi( gbuf );
+		if ( ghostOn ) {
+			vec4_t gcol = {0.2f, 0.85f, 1.0f, 1.0f};
+			vec4_t barBg = {0.0f, 0.0f, 0.0f, 0.45f};
+			vec4_t barFg = {0.15f, 0.7f, 1.0f, 0.85f};
+			int barW;
+			trap_Cvar_VariableStringBuffer( "g_ghost_energy", ebuf, sizeof(ebuf) );
+			trap_Cvar_VariableStringBuffer( "g_ghost_cloakms", cbuf, sizeof(cbuf) );
+			trap_Cvar_VariableStringBuffer( "g_ghost_status", stbuf, sizeof(stbuf) );
+			energy = atoi( ebuf );
+			cloakms = atoi( cbuf );
+			if ( energy < 0 ) energy = 0;
+			if ( energy > 100 ) energy = 100;
+			CG_FillRect( 16, 420, 120, 10, barBg );
+			barW = (int)( 120 * energy / 100 );
+			if ( barW > 0 ) {
+				CG_FillRect( 16, 420, barW, 10, barFg );
+			}
+			Com_sprintf( s, sizeof(s), "GHOST %i  J cloak  H emp  N nuke", energy );
+			CG_DrawSmallStringColor( 16, 432, s, gcol );
+			if ( stbuf[0] ) {
+				vec4_t warn = {1.0f, 0.35f, 0.1f, 1.0f};
+				w = CG_DrawStrlen( stbuf ) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor( 320 - w/2, 400, stbuf, warn );
+			} else if ( cloakms > 0 ) {
+				CG_DrawSmallStringColor( 16, 444, "CLOAKED", gcol );
+			}
+		}
+	}
+
 	// daily best line (daily mode only): today's per-day records
 	if (daily) {
 		char dw[8], dt[16], dk[8], dc[8];

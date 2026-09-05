@@ -2408,6 +2408,7 @@ Q3GOBJ_ = \
   $(B)/$(BASEGAME)/game/g_killspree.o \
   $(B)/$(BASEGAME)/game/g_misc.o \
   $(B)/$(BASEGAME)/game/g_neonwave.o \
+  $(B)/$(BASEGAME)/game/g_ghost.o \
   $(B)/$(BASEGAME)/game/replay_recorder.o \
   $(B)/$(BASEGAME)/game/g_missile.o \
   $(B)/$(BASEGAME)/game/g_mover.o \
@@ -2471,6 +2472,7 @@ MPGOBJ_ = \
   $(B)/$(MISSIONPACK)/game/g_killspree.o \
   $(B)/$(MISSIONPACK)/game/g_misc.o \
   $(B)/$(MISSIONPACK)/game/g_neonwave.o \
+  $(B)/$(MISSIONPACK)/game/g_ghost.o \
   $(B)/$(MISSIONPACK)/game/g_missile.o \
   $(B)/$(MISSIONPACK)/game/g_mover.o \
   $(B)/$(MISSIONPACK)/game/g_playerstore.o \

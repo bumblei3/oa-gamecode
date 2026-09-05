@@ -1115,6 +1115,12 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		return;
 	}
 
+#ifdef NEONARENA_MOD
+	if ( targ->client && !( targ->r.svFlags & SVF_BOT ) && damage > 0 ) {
+		NW_GhostBreakCloak( targ );
+	}
+#endif
+
 	// the intermission has already been qualified for, so don't
 	// allow any extra scoring
 	if ( level.intermissionQueued ) {

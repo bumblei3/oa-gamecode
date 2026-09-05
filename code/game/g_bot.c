@@ -738,10 +738,16 @@ static void G_AddBot( const char *name, float skill, const char *team, int delay
 	// NeonWave boss flag (set by addbot console command via +set)
 	{
 		char bossBuf[4];
+		char detBuf[4];
 		trap_Cvar_VariableStringBuffer( "g_neonwave_nextboss", bossBuf, sizeof(bossBuf) );
 		if ( bossBuf[0] == '1' ) {
 			Info_SetValueForKey( userinfo, "neonwave_boss", "1" );
 			trap_Cvar_Set( "g_neonwave_nextboss", "0" );
+		}
+		trap_Cvar_VariableStringBuffer( "g_neonwave_nextdetector", detBuf, sizeof(detBuf) );
+		if ( detBuf[0] == '1' ) {
+			Info_SetValueForKey( userinfo, "neonwave_detector", "1" );
+			trap_Cvar_Set( "g_neonwave_nextdetector", "0" );
 		}
 	}
 #endif

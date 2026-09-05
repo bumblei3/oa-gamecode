@@ -2895,6 +2895,19 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 	if (!entinfo.valid) {
 		return 0;
 	}
+	if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)
+#ifdef NEONARENA_MOD
+			&& !NW_GhostSeesInvis(&g_entities[viewer])
+#endif
+			) {
+		vec3_t toEnt;
+		float nearDist;
+		VectorSubtract(entinfo.origin, eye, toEnt);
+		nearDist = VectorLength(toEnt);
+		if (nearDist > 80.0f) {
+			return 0;
+		}
+	}
 
 	//calculate middle of bounding box
 	//calculate middle of bounding box
@@ -3060,7 +3073,11 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		//if the enemy isn't dead and the enemy isn't the bot self
 		if (EntityIsDead(&entinfo) || entinfo.number == bs->entitynum) continue;
 		//if the enemy is invisible and not shooting
-		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
+		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)
+#ifdef NEONARENA_MOD
+				&& !NW_GhostSeesInvis(&g_entities[bs->entitynum])
+#endif
+				) {
 			continue;
 		}
 		//Neil Torontos unlagged

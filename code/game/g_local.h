@@ -316,6 +316,7 @@ typedef struct {
 	qboolean    cannotWin; // Set to true if the players joins a leading team or the team with the most players
 #ifdef NEONARENA_MOD
 	qboolean    neonwaveBoss; // NeonWave boss drone
+	qboolean    neonwaveDetector; // Ghost kit: always sees cloak
 	qboolean    nwBossTank;   // NeonWave TANK boss (slow, 6x HP, MG)
 	qboolean    nwBossGlass;  // NeonWave GLASS CANNON boss (fast, 2x HP, rail)
 	int         neonwaveBossShield;    // TANK shield active (damage halved)
@@ -931,6 +932,17 @@ qboolean NeonWave_TrySecondWind( gentity_t *ent );
 void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damage );
 qboolean NeonWave_BuyOffer( gentity_t *ent, int slot );
 void NeonWave_PerkFx( const char *kind );
+qboolean NW_GhostActive( void );
+void NW_GhostSpawn( gentity_t *ent );
+void NW_GhostFrame( void );
+void NW_GhostOnKill( gentity_t *attacker );
+void NW_GhostBreakCloak( gentity_t *ent );
+qboolean NW_GhostSwarmActive( void );
+qboolean NW_GhostSeesInvis( gentity_t *viewer );
+int NW_BossPhase( void );
+void Cmd_GhostCloak_f( gentity_t *ent );
+void Cmd_GhostEmp_f( gentity_t *ent );
+void Cmd_GhostNuke_f( gentity_t *ent );
 void CheckTeamVote( int team );
 
 //

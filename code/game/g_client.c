@@ -1201,12 +1201,16 @@ void ClientUserinfoChanged( int clientNum ) {
 				client->pers.maxHealth = 400; // below glass-cannon tier -> classic 4x
 			}
 			client->pers.neonwaveBoss = qtrue;
+			client->pers.neonwaveDetector = qfalse;
 			if ( client->pers.maxHealth >= 600 ) {
 				client->pers.nwBossTank = qtrue;
 			}
 			if ( client->pers.maxHealth <= 200 ) {
 				client->pers.nwBossGlass = qtrue; // fast, fragile railgun boss
 			}
+		} else if ( atoi( Info_ValueForKey( userinfo, "neonwave_detector" ) ) == 1 ) {
+			client->pers.neonwaveDetector = qtrue;
+			client->pers.maxHealth = 120;
 		}
 		// NeonWave player upgrades: +25 max HP per level (cap +150)
 		else if ( g_gametype.integer == GT_NEONWAVE
@@ -1860,11 +1864,19 @@ void ClientSpawn(gentity_t *ent) {
 	if(g_gametype.integer != GT_ELIMINATION && g_gametype.integer != GT_CTF_ELIMINATION && g_gametype.integer != GT_LMS && !g_elimination_allgametypes.integer)
 	{
 #ifdef NEONARENA_MOD
-		// NeonWave: railgun + lightning only (neon identity)
-		client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN ) | ( 1 << WP_LIGHTNING ) | ( 1 << WP_GAUNTLET );
-		client->ps.ammo[WP_RAILGUN] = 20;
-		client->ps.ammo[WP_LIGHTNING] = 150;
-		client->ps.ammo[WP_GAUNTLET] = -1;
+		// NeonWave: railgun + lightning, or Ghost kit (rail only)
+		if ( NW_GhostActive() ) {
+			client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN ) | ( 1 << WP_GAUNTLET );
+			client->ps.ammo[WP_RAILGUN] = 30;
+			client->ps.ammo[WP_GAUNTLET] = -1;
+			client->ps.weapon = WP_RAILGUN;
+			NW_GhostSpawn( ent );
+		} else {
+			client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN ) | ( 1 << WP_LIGHTNING ) | ( 1 << WP_GAUNTLET );
+			client->ps.ammo[WP_RAILGUN] = 20;
+			client->ps.ammo[WP_LIGHTNING] = 150;
+			client->ps.ammo[WP_GAUNTLET] = -1;
+		}
 		client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
 #else
 		client->ps.stats[STAT_WEAPONS] = ( 1 << WP_MACHINEGUN );

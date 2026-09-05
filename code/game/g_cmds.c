@@ -2412,6 +2412,9 @@ commands_t cmds[ ] =
 	{ "waveselect", 0, Cmd_NeonWaveSelect_f },
 	{ "waveselect_up", 0, Cmd_NeonWaveSelectUp_f },
 	{ "waveselect_down", 0, Cmd_NeonWaveSelectDown_f },
+	{ "cloak", CMD_LIVING, Cmd_GhostCloak_f },
+	{ "emp", CMD_LIVING, Cmd_GhostEmp_f },
+	{ "nuke", CMD_LIVING, Cmd_GhostNuke_f },
 #endif
 	// normal commands
 	{ "team", 0, Cmd_Team_f },

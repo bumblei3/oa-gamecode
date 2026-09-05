@@ -1900,10 +1900,20 @@ void NeonWave_StartWave( int num ) {
 			NW_SpawnBot( skill );
 		}
 	}
+	if ( NW_GhostActive() && num >= 8 ) {
+		trap_Cvar_Set( "g_neonwave_nextdetector", "1" );
+		trap_SendConsoleCommand( EXEC_APPEND,
+			va( "addbot sarge %i \"Detector W%d\"\n", skill, num ) );
+		G_Printf( "NeonWave: DETECTOR spawned (wave %i)\n", num );
+	}
 }
 
 int NeonWave_GetWave( void ) {
 	return nw_wave;
+}
+
+int NW_BossPhase( void ) {
+	return nw_bossPhase;
 }
 
 static void NW_GrantUpgradePoints( void ) {
@@ -2651,6 +2661,7 @@ void NeonWave_OnDroneKill( gentity_t *attacker ) {
 	if ( g_gametype.integer != GT_NEONWAVE ) {
 		return;
 	}
+	NW_GhostOnKill( attacker );
 	if ( !NW_ModActive( NW_MOD_VAMPIRE ) ) {
 		return;
 	}
@@ -2672,6 +2683,7 @@ void NeonWave_Frame( void ) {
 	if ( g_gametype.integer != GT_NEONWAVE ) {
 		return;
 	}
+	NW_GhostFrame();
 	// codex/bestiary toggle: mirror the cvar state so headless tests can assert
 	// the trigger fired (the actual HUD panel is drawn client-side in cg_draw.c)
 	{

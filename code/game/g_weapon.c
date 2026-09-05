@@ -974,6 +974,10 @@ void FireWeapon( gentity_t *ent )
 	if (ent->client->spawnprotected)
 		ent->client->spawnprotected = qfalse;
 
+#ifdef NEONARENA_MOD
+	NW_GhostBreakCloak( ent );
+#endif
+
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
 	if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {
 		if( ent->s.weapon == WP_NAILGUN ) {
