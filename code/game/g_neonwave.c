@@ -73,6 +73,7 @@ static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
 static qboolean nw_fcFired;
 static qboolean nw_failFired;
+static qboolean nw_replayTestDone;
 static int nw_modifier = NW_MOD_NONE;
 static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (wave >= 8)
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
@@ -2297,6 +2298,22 @@ static void NW_GameOver( int event, const char *why ) {
 	G_Printf( "NeonWave: %s (wave %i)\n", why, nw_wave );
 	NW_WriteRunStats( event );
 	NeonWave_LogPayload();
+
+	// test hook: save replay to file, then load it to verify roundtrip
+	if ( nw_replayTestDone ) {
+		G_ReplaySave( "neonwave_replay.dat" );
+		if ( G_ReplayGetCount() > 0 ) {
+			int origCount = G_ReplayGetCount();
+			G_ReplayStart(); // clear
+			G_ReplayLoad( "neonwave_replay.dat" );
+			G_Printf( "NeonWave: REPLAY roundtrip events=%d loaded=%d match=%d\n",
+				origCount, G_ReplayGetCount(),
+				origCount == G_ReplayGetCount() ? 1 : 0 );
+		} else {
+			G_Printf( "NeonWave: REPLAY no events recorded\n" );
+		}
+	}
+
 	LogExit( why );
 }
 
@@ -2832,19 +2849,35 @@ void NeonWave_Frame( void ) {
 
 	// test hook: g_neonwave_startwave N forces wave N (polled every frame,
 	// works headless regardless of when the cvar is set)
-	if ( !nw_over ) {
-		char swBuf[8];
-		int sw;
-		trap_Cvar_VariableStringBuffer( "g_neonwave_startwave", swBuf, sizeof(swBuf) );
-		sw = atoi( swBuf );
-		if ( sw > 0 && sw != nw_wave ) {
-			NeonWave_ForceStarted();
-			nw_inBreak = qfalse;
-			trap_Cvar_Set( "g_neonwave_startwave", "0" ); // consume (fire once)
-			NeonWave_StartWave( sw );
-			return;
+		if ( !nw_over ) {
+			char swBuf[8];
+			int sw;
+			trap_Cvar_VariableStringBuffer( "g_neonwave_startwave", swBuf, sizeof(swBuf) );
+			sw = atoi( swBuf );
+			if ( sw > 0 && sw != nw_wave ) {
+				NeonWave_ForceStarted();
+				nw_inBreak = qfalse;
+				trap_Cvar_Set( "g_neonwave_startwave", "0" ); // consume (fire once)
+				NeonWave_StartWave( sw );
+				return;
+			}
 		}
-	}
+
+	// test hook: g_neonwave_replaytest 1 — record a few events on wave 1,
+	// save+load at game over, verify roundtrip (used by assert_76)
+		if ( !nw_over && nw_wave == 1 && !nw_replayTestDone ) {
+			char rtBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 1 && nw_started ) {
+				G_ReplayStart();
+				G_ReplayRecord( 0, 1.0f, 0.0f, 0 );  // MOVE
+				G_ReplayRecord( 1, 0.5f, 0.5f, 0 );  // AIM
+				G_ReplayRecord( 2, 0.0f, 0.0f, 1 );  // FIRE
+				G_ReplayRecord( 0, -1.0f, 0.0f, 0 ); // MOVE
+				G_ReplayRecord( 4, 0.0f, 0.0f, 0 );  // JUMP
+				nw_replayTestDone = qtrue;
+			}
+		}
 
 	if ( !nw_started ) {
 		qboolean autostart = qfalse;
