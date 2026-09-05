@@ -10,13 +10,6 @@
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
 
-struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-};
-
 struct replayHeader {
     unsigned int magic;
     unsigned short version;
@@ -25,6 +18,8 @@ struct replayHeader {
     unsigned int durationMs;
     char mapName[64];
 };
+
+// replayEvent is defined in g_local.h
 
 static struct replayEvent replayEvents[REPLAY_MAX_EVENTS];
 static int replayCount = 0;
