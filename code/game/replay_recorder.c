@@ -3,9 +3,6 @@
 // Minimal C implementation for ioq3e dedicated server.
 
 #include "g_local.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 #ifdef NEONARENA_MOD
 
