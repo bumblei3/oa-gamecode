@@ -115,13 +115,15 @@ static void CG_DrawNeonAchievement( void ) {
 
 		// Background
 		{
-			vec4_t bg = {0.05f, 0.15f, 0.25f, 0.8f * alpha};
+			vec4_t bg;
+			bg[0] = 0.05f; bg[1] = 0.15f; bg[2] = 0.25f; bg[3] = 0.8f * alpha;
 			CG_FillRect( x - w/2, y - h/2, w, h, bg );
 		}
 
 		// Text
 		{
-			vec4_t color = {1.0f, 0.85f, 0.2f, alpha};
+			vec4_t color;
+			color[0] = 1.0f; color[1] = 0.85f; color[2] = 0.2f; color[3] = alpha;
 			CG_DrawBigStringColor( x - CG_DrawStrlen("ACHIEVEMENT") * BIGCHAR_WIDTH / 2, y - 12, "ACHIEVEMENT", color );
 			color[0] = 0.2f; color[1] = 1.0f; color[2] = 0.8f;
 			CG_DrawBigStringColor( x - CG_DrawStrlen(cg_achievementName) * BIGCHAR_WIDTH / 2, y + 8, cg_achievementName, color );
