@@ -2407,7 +2407,31 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		}
 	}
 
-	if ( nw_bossType == NW_BOSS_TELEPORTER ) {
+	if ( nw_bossType == NW_BOSS_HEALER ) {
+		static int lastHeal = 0;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss ) {
+			int i;
+			int healed = 0;
+			if ( level.time - lastHeal < 2000 ) return; // heal every 2 seconds
+			lastHeal = level.time;
+			for ( i = 0; i < level.maxclients; i++ ) {
+				gentity_t *ent = &g_entities[i];
+				if ( !ent->inuse || !ent->client ) continue;
+				if ( ent->r.svFlags & SVF_BOT && ent->health > 0 && ent != boss ) {
+					int dist = (int)Distance(ent->r.currentOrigin, boss->r.currentOrigin);
+					if ( dist < 150 ) {
+						int heal = 20;
+						int maxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];
+						if ( ent->health + heal > maxHealth ) heal = maxHealth - ent->health;
+						ent->health += heal;
+						if ( healed == 0 ) G_Printf( "NeonWave: HEALER heals nearby bots for %i HP\n", heal );
+						healed++;
+					}
+				}
+			}
+		}
+	}
 		gentity_t *boss = NW_FindBoss();
 		if ( boss ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
