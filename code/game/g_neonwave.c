@@ -1646,9 +1646,9 @@ void NeonWave_StartWave( int num ) {
 		if ( NW_ModActive( NW_MOD_TIMEWARP ) ) {
 			speed = 520; // ~1.6x of default 320
 		}
-		G_Printf( "NeonWave: FROST slowed to %i\n", speed );
 		if ( NW_ModActive( NW_MOD_FROST ) ) {
 			speed = 220; // slowed player (frost effect)
+			G_Printf( "NeonWave: FROST slowed to %i\n", speed );
 		}
 		if ( NW_ModActive( NW_MOD_FRENZY ) ) {
 			qf = 4;

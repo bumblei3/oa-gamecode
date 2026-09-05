@@ -10,7 +10,7 @@
 #define GH_REGEN_MS		1000
 #define GH_REGEN_AMT		3
 #define GH_CLOAK_COST		25
-#define GH_CLOAK_DRAIN		8
+#define GH_CLOAK_DRAIN		5
 #define GH_AMBUSH_MS		2000
 #define GH_EMP_COST		35
 #define GH_EMP_CD		25000
