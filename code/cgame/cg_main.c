@@ -85,6 +85,14 @@ Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, in
 	return -1;
 }
 
+#ifdef NEONARENA_MOD
+qboolean CG_GhostKit(void) {
+	char buf[8];
+	trap_Cvar_VariableStringBuffer("g_neonwave_ghost", buf, sizeof(buf));
+	return atoi(buf) ? qtrue : qfalse;
+}
+#endif
+
 
 cg_t cg;
 cgs_t cgs;
@@ -1265,6 +1273,8 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.neonPerkPickSound = trap_S_RegisterSound("sound/nw_combo5.wav", qfalse);
 	cgs.media.neonRailImpactShader = trap_R_RegisterShader("railImpactGlow");
 	cgs.media.neonLgSparkShader = trap_R_RegisterShader("lgSparkBurst");
+	cgs.media.ghostScopeShader = trap_R_RegisterShader("gfx/2d/ghost_scope");
+	cgs.media.ghostCloakShader = trap_R_RegisterShader("neonarena/ghostCloak");
 #endif // NEONARENA_MOD
 
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");

@@ -2510,7 +2510,15 @@ void CG_AddRefEntityWithPowerups(refEntity_t *ent, entityState_t *state, int tea
 
 	if (state->powerups & (1 << PW_INVIS)) {
 		if ((cgs.dmflags & DF_INVIS) == 0) {
+#ifdef NEONARENA_MOD
+			if (CG_GhostKit() && cgs.media.ghostCloakShader) {
+				ent->customShader = cgs.media.ghostCloakShader;
+			} else {
+				ent->customShader = cgs.media.invisShader;
+			}
+#else
 			ent->customShader = cgs.media.invisShader;
+#endif
 			trap_R_AddRefEntityToScene(ent);
 		}
 	} else {

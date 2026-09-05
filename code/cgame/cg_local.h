@@ -878,6 +878,8 @@ typedef struct {
 	qhandle_t	neonComboChestShader;
 	qhandle_t	neonRailImpactShader;
 	qhandle_t	neonLgSparkShader;
+	qhandle_t	ghostScopeShader;
+	qhandle_t	ghostCloakShader;
 #endif
 	// LEILEI shaders
 
@@ -2035,6 +2037,7 @@ void	trap_R_GetViewPosition( vec3_t point );
 void CG_NeonPerkFxPulse( void );
 float CG_NeonDashFovKick( void );
 void CG_NeonAchievement( const char *name );
+qboolean CG_GhostKit( void );
 #endif
 
 #define	LFX_SMOKEPUFF		1;

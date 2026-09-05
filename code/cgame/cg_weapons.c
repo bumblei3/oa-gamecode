@@ -1637,7 +1637,15 @@ static void CG_AddWeaponWithPowerups( refEntity_t *gun, int powerups )
 	// add powerup effects
 	if ( powerups & ( 1 << PW_INVIS ) ) {
 		if( (cgs.dmflags & DF_INVIS) == 0) {
+#ifdef NEONARENA_MOD
+			if ( CG_GhostKit() && cgs.media.ghostCloakShader ) {
+				gun->customShader = cgs.media.ghostCloakShader;
+			} else {
+				gun->customShader = cgs.media.invisShader;
+			}
+#else
 			gun->customShader = cgs.media.invisShader;
+#endif
 			trap_R_AddRefEntityToScene( gun );
 		}
 	}

@@ -1406,24 +1406,20 @@ static void CG_DrawNeonLook(void) {
 	}
 #ifdef NEONARENA_MOD
 	if ( cg.snap ) {
-		char gbuf[8];
-		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
-		if ( atoi( gbuf ) && cg.snap->ps.powerups[PW_INVIS] > cg.time ) {
+		if ( CG_GhostKit() && cg.snap->ps.powerups[PW_INVIS] > cg.time ) {
 			vec4_t cloak, edge;
 			float pulse;
 			pulse = 0.5f + 0.5f * (float)sin( cg.time / 280.0 );
-			cloak[0] = 0.04f; cloak[1] = 0.10f; cloak[2] = 0.16f;
-			cloak[3] = 0.16f + 0.08f * pulse;
-			edge[0] = 0.15f; edge[1] = 0.75f; edge[2] = 1.0f;
-			edge[3] = 0.10f + 0.08f * pulse;
+			cloak[0] = 0.04f; cloak[1] = 0.12f; cloak[2] = 0.18f;
+			cloak[3] = 0.14f + 0.08f * pulse;
+			edge[0] = 0.15f; edge[1] = 0.80f; edge[2] = 1.0f;
+			edge[3] = 0.18f + 0.10f * pulse;
 			CG_FillRect( 0, 0, 640, 480, cloak );
 			if ( cgs.media.neonVignetteShader ) {
-				trap_R_SetColor( cloak );
+				trap_R_SetColor( edge );
 				CG_DrawPic( 0, 0, 640, 480, cgs.media.neonVignetteShader );
 				trap_R_SetColor( NULL );
 			}
-			CG_FillRect( 0, 0, 640, 16, edge );
-			CG_FillRect( 0, 464, 640, 16, edge );
 		}
 	}
 #endif
@@ -3654,32 +3650,30 @@ CROSSHAIR
 
 #ifdef NEONARENA_MOD
 static void CG_DrawGhostSnipeScope( void ) {
-	vec4_t cyan, dim, edge;
+	vec4_t cyan, black;
 	int cx, cy;
+
 	cyan[0] = 0.2f; cyan[1] = 0.92f; cyan[2] = 1.0f; cyan[3] = 0.95f;
-	dim[0] = 0.0f; dim[1] = 0.02f; dim[2] = 0.05f; dim[3] = 0.28f;
-	edge[0] = 0.0f; edge[1] = 0.01f; edge[2] = 0.03f; edge[3] = 0.58f;
+	black[0] = 0.0f; black[1] = 0.0f; black[2] = 0.0f; black[3] = 0.90f;
 	cx = 320;
 	cy = 240;
-	CG_FillRect( 0, 0, 640, 64, edge );
-	CG_FillRect( 0, 416, 640, 64, edge );
-	CG_FillRect( 0, 0, 80, 480, edge );
-	CG_FillRect( 560, 0, 80, 480, edge );
-	CG_FillRect( 0, 0, 640, 480, dim );
-	if ( cgs.media.neonVignetteShader ) {
-		trap_R_SetColor( dim );
-		CG_DrawPic( 0, 0, 640, 480, cgs.media.neonVignetteShader );
+
+	/* 480x480 iris on 640x480: fill leftover columns so the hole stays circular */
+	CG_FillRect( 0, 0, 80, 480, black );
+	CG_FillRect( 560, 0, 80, 480, black );
+	if ( cgs.media.ghostScopeShader ) {
 		trap_R_SetColor( NULL );
+		CG_DrawPic( 80, 0, 480, 480, cgs.media.ghostScopeShader );
+	} else {
+		CG_FillRect( 0, 0, 640, 64, black );
+		CG_FillRect( 0, 416, 640, 64, black );
 	}
-	CG_FillRect( cx - 36, cy, 28, 1, cyan );
-	CG_FillRect( cx + 8, cy, 28, 1, cyan );
-	CG_FillRect( cx, cy - 36, 1, 28, cyan );
-	CG_FillRect( cx, cy + 8, 1, 28, cyan );
+
+	CG_FillRect( cx - 24, cy, 16, 1, cyan );
+	CG_FillRect( cx + 8, cy, 16, 1, cyan );
+	CG_FillRect( cx, cy - 24, 1, 16, cyan );
+	CG_FillRect( cx, cy + 8, 1, 16, cyan );
 	CG_FillRect( cx, cy, 2, 2, cyan );
-	CG_FillRect( cx - 2, cy - 52, 5, 1, cyan );
-	CG_FillRect( cx - 2, cy + 52, 5, 1, cyan );
-	CG_FillRect( cx - 52, cy - 2, 1, 5, cyan );
-	CG_FillRect( cx + 52, cy - 2, 1, 5, cyan );
 }
 #endif
 
@@ -3711,13 +3705,9 @@ static void CG_DrawCrosshair(void) {
 	}
 
 #ifdef NEONARENA_MOD
-	{
-		char gbuf[8];
-		trap_Cvar_VariableStringBuffer( "g_neonwave_ghost", gbuf, sizeof(gbuf) );
-		if ( atoi( gbuf ) && cg.zoomed ) {
-			CG_DrawGhostSnipeScope();
-			return;
-		}
+	if ( CG_GhostKit() && cg.zoomed ) {
+		CG_DrawGhostSnipeScope();
+		return;
 	}
 #endif
 
