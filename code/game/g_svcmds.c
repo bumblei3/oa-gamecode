@@ -496,6 +496,7 @@ struct {
 	//Kicks a player by number in the game logic rather than the server number
 	{ "clientkick_game", qfalse, ClientKick_f },
 	{ "endgamenow", qfalse, EndGame_f },
+	{ "nw_replay", qfalse, G_ReplayCmd_f },
 };
 
 /*

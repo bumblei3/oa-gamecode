@@ -918,6 +918,7 @@ void NeonWave_OnDroneKill( gentity_t *attacker );
 void NW_MomentumOnKill( gentity_t *attacker );
 qboolean NeonWave_IsBreak( void );
 void NeonWave_RefreshStatus( void );
+void G_ReplayCmd_f( void );
 #define NW_PERK_PIERCE		1
 #define NW_PERK_CHAIN		2
 #define NW_PERK_DASH		3
