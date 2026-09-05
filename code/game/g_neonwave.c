@@ -71,6 +71,9 @@
 
 static int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
+static int nw_multikillCount = 0;
+static int nw_multikillTime = 0;
+static qboolean nw_untouchableWave = qtrue;
 static qboolean nw_fcFired;
 static qboolean nw_failFired;
 static qboolean nw_replayTestDone;
@@ -2187,6 +2190,15 @@ static void NW_CheckAchievements( int event ) {
 	if ( nw_wave >= 50 ) {
 		nw_achievements[ NW_ACH_WAVE_50 ] = qtrue;
 	}
+	if ( nw_untouchableWave ) {
+		nw_achievements[ NW_ACH_PERFECT_WAVE ] = qtrue;
+	}
+	if ( nw_multikillCount >= 3 ) {
+		nw_achievements[ NW_ACH_MULTIKILL_3 ] = qtrue;
+	}
+	if ( nw_multikillCount >= 5 ) {
+		nw_achievements[ NW_ACH_MULTIKILL_5 ] = qtrue;
+	}
 
 	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
 		if ( !nw_achievements[i] ) {
@@ -2811,6 +2823,16 @@ void NeonWave_Frame( void ) {
 			}
 			if ( h->client->nwCombo > nw_runBestCombo ) {
 				nw_runBestCombo = h->client->nwCombo;
+			}
+			// Multikill tracking
+			{
+				int now = trap_Milliseconds();
+				if ( now - nw_multikillTime > 1000 ) {
+					nw_multikillCount = 1;
+				} else {
+					nw_multikillCount++;
+				}
+				nw_multikillTime = now;
 			}
 			G_Printf( "NeonWave: fake combo %i registered (best %i)\n",
 				n, h->client->pers.nwBestCombo );
