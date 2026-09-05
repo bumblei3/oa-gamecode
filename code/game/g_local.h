@@ -1119,15 +1119,10 @@ extern vmCvar_t g_inactivity;
 extern vmCvar_t g_debugMove;
 extern vmCvar_t g_debugAlloc;
 
-// Replay event structure (must be outside #ifdef for q3lcc)
-struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-};
-
 #ifdef NEONARENA_MOD
+// Forward declaration for replay recorder API
+struct replayEvent;
+
 void G_ReplayStart(void);
 void G_ReplayStop(void);
 void G_ReplayRecord(int type, float x, float y, unsigned char buttons);

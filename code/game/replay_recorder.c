@@ -9,7 +9,13 @@
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
 
-// replayEvent is defined in g_local.h
+// Define structs at top of #ifdef for q3lcc (C89 requires types before use)
+struct replayEvent {
+    unsigned int timestampMs;
+    unsigned char type;
+    float x, y;
+    unsigned char buttons;
+};
 
 struct replayHeader {
     unsigned int magic;
@@ -44,9 +50,10 @@ void G_ReplayStop(void) {
 }
 
 void G_ReplayRecord(int type, float x, float y, unsigned char buttons) {
+    struct replayEvent *e;
     if (!replayRecording || replayCount >= REPLAY_MAX_EVENTS) return;
 
-    struct replayEvent *e = &replayEvents[replayCount];
+    e = &replayEvents[replayCount];
     e->timestampMs = trap_Milliseconds() - replayStartTime;
     e->type = (unsigned char)type;
     e->x = x;
@@ -66,6 +73,7 @@ int G_ReplayGetCount(void) {
 void G_ReplaySave(const char *filename) {
     fileHandle_t f;
     char mapNameBuf[MAX_CVAR_VALUE_STRING];
+    struct replayHeader header;
     if (replayCount == 0) {
         G_Printf("NeonWave: Replay save failed — no events recorded\n");
         return;
@@ -76,7 +84,6 @@ void G_ReplaySave(const char *filename) {
         return;
     }
 
-    struct replayHeader header;
     header.magic = REPLAY_MAGIC;
     header.version = REPLAY_VERSION;
     header.reserved = 0;
@@ -150,11 +157,11 @@ void G_ReplayReset(void) {
 }
 
 void G_ReplayCmd_f(void) {
+    char cmd[32];
     if (trap_Argc() < 2) {
         G_Printf("Usage: nw_replay <start|stop|save|load|play|status>\n");
         return;
     }
-    char cmd[32];
     trap_Argv(1, cmd, sizeof(cmd));
 
     if (Q_stricmp(cmd, "start") == 0) {
