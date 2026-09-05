@@ -62,6 +62,7 @@ static int gh_swarmUntil;
 static int gh_coneStart[MAX_CLIENTS];
 static int gh_inCone[MAX_CLIENTS];
 static int gh_lastWarn[MAX_CLIENTS];
+static int gh_turretWarn;
 
 static qboolean GH_CvarOn( void ) {
 	char buf[8];
@@ -290,14 +291,15 @@ static void GH_LockBeam( gentity_t *bot ) {
 	tent->s.clientNum = bot->s.number;
 }
 
-static void GH_WarnLaser( gentity_t *det, gentity_t *hum ) {
+static void GH_WarnLaser( gentity_t *det, gentity_t *hum, int *lastWarn ) {
 	gentity_t *tent;
-	int id;
-	id = GH_Id( det );
-	if ( level.time - gh_lastWarn[id] < 200 ) {
+	if ( !lastWarn ) {
 		return;
 	}
-	gh_lastWarn[id] = level.time;
+	if ( level.time - *lastWarn < 200 ) {
+		return;
+	}
+	*lastWarn = level.time;
 	tent = G_TempEntity( hum->r.currentOrigin, EV_RAILTRAIL );
 	VectorCopy( det->r.currentOrigin, tent->s.origin2 );
 	tent->s.eventParm = 255;
@@ -476,21 +478,31 @@ static void GH_LockRefund( gentity_t *owner ) {
 	trap_SendServerCommand( id, "print \"Lockdown missed\n\"" );
 }
 
+static qboolean GH_IsTurret( gentity_t *ent ) {
+	return ent && ent->inuse && ent->classname
+		&& !Q_stricmp( ent->classname, "ghost_detector_turret" );
+}
+
 static void GH_LockTarget( gentity_t *owner, gentity_t *targ ) {
 	int oid, tid;
 	oid = GH_Id( owner );
-	tid = GH_Id( targ );
 	gh_lockFlying[oid] = 0;
 	gh_lockCdUntil[oid] = level.time + GH_LOCK_CD;
+	targ->s.constantLight = GH_LOCK_LIGHT;
+	GH_LockBeam( targ );
+	trap_SendServerCommand( -1, "cp \"LOCKED\n\"" );
+	GH_Sound( owner, "sound/weapons/lightning/lg_hit.wav" );
+	if ( GH_IsTurret( targ ) ) {
+		targ->timestamp = level.time + GH_LOCK_MS;
+		G_Printf( "Ghost: lockdown on Detector Turret\n" );
+		return;
+	}
+	tid = GH_Id( targ );
 	gh_lockUntil[tid] = level.time + GH_LOCK_MS;
 	VectorClear( targ->client->ps.velocity );
 	targ->client->ps.pm_time = GH_LOCK_MS;
 	targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
 	targ->client->ps.weaponTime = GH_LOCK_MS;
-	targ->s.constantLight = GH_LOCK_LIGHT;
-	GH_LockBeam( targ );
-	trap_SendServerCommand( -1, "cp \"LOCKED\n\"" );
-	GH_Sound( owner, "sound/weapons/lightning/lg_hit.wav" );
 	G_Printf( "Ghost: lockdown on %s\n", targ->client->pers.netname );
 }
 
@@ -505,7 +517,9 @@ void NW_GhostLockImpact( gentity_t *bolt, gentity_t *other ) {
 	qboolean mech;
 	owner = bolt->parent;
 	mech = qfalse;
-	if ( other && other->inuse && other->client && other->health > 0
+	if ( GH_IsTurret( other ) && other->health > 0 ) {
+		mech = qtrue;
+	} else if ( other && other->inuse && other->client && other->health > 0
 			&& ( other->r.svFlags & SVF_BOT )
 			&& ( other->client->pers.neonwaveBoss || other->client->pers.neonwaveDetector ) ) {
 		mech = qtrue;
@@ -630,11 +644,132 @@ static void GH_Detonate( gentity_t *ent, int id ) {
 	G_Printf( "Ghost: nuke detonated by %s\n", ent->client->pers.netname );
 }
 
+static void GH_ScanCloak( gentity_t *det, vec3_t fwd, int *lastWarn ) {
+	int h;
+	gentity_t *hum;
+	vec3_t toH;
+	float dist, cone;
+
+	for ( h = 0; h < level.maxclients; h++ ) {
+		hum = &g_entities[h];
+		if ( !hum->inuse || !hum->client ) continue;
+		if ( hum->r.svFlags & SVF_BOT ) continue;
+		if ( hum->health <= 0 ) continue;
+		if ( hum->client->ps.powerups[PW_INVIS] <= level.time ) continue;
+		VectorSubtract( hum->r.currentOrigin, det->r.currentOrigin, toH );
+		dist = VectorLength( toH );
+		if ( dist > GH_DETECT_RANGE ) continue;
+		if ( dist < 8.0f ) {
+			cone = 1.0f;
+		} else {
+			VectorNormalize( toH );
+			cone = DotProduct( fwd, toH );
+		}
+		if ( cone < 0.76f ) continue;
+		if ( !gh_inCone[h] && gh_coneStart[h] == 0 ) {
+			gh_coneStart[h] = level.time;
+			trap_SendServerCommand( h, "cp \"SCANNING\n\"" );
+		}
+		gh_inCone[h] = 1;
+		GH_WarnLaser( det, hum, lastWarn );
+		if ( level.time - gh_coneStart[h] >= GH_WARN_MS ) {
+			NW_GhostBreakCloak( hum );
+			gh_swarmUntil = level.time + GH_SWARM_MS;
+			gh_inCone[h] = 0;
+			gh_coneStart[h] = 0;
+			trap_SendServerCommand( -1, "cp \"DETECTED\n\"" );
+			G_Printf( "Ghost: detector revealed client %i\n", h );
+		}
+	}
+}
+
+static void GH_TurretDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath ) {
+	G_Printf( "Ghost: detector turret destroyed\n" );
+	self->takedamage = qfalse;
+	self->r.contents = 0;
+	self->s.constantLight = 0;
+	self->think = G_FreeEntity;
+	self->nextthink = level.time + 50;
+	self->classname = "ghost_detector_turret_x";
+}
+
+static void GH_TurretPickOrigin( vec3_t out ) {
+	gentity_t *spot, *hum, *best;
+	float bestMin, nearest, d;
+	vec3_t delta;
+	int h;
+
+	best = NULL;
+	bestMin = -1.0f;
+	spot = NULL;
+	while ( ( spot = G_Find( spot, FOFS( classname ), "info_player_deathmatch" ) ) != NULL ) {
+		nearest = 999999.0f;
+		for ( h = 0; h < level.maxclients; h++ ) {
+			hum = &g_entities[h];
+			if ( !hum->inuse || !hum->client ) continue;
+			if ( hum->r.svFlags & SVF_BOT ) continue;
+			if ( hum->health <= 0 ) continue;
+			VectorSubtract( spot->s.origin, hum->r.currentOrigin, delta );
+			d = VectorLength( delta );
+			if ( d < nearest ) {
+				nearest = d;
+			}
+		}
+		if ( nearest > bestMin ) {
+			bestMin = nearest;
+			best = spot;
+		}
+	}
+	if ( best ) {
+		VectorCopy( best->s.origin, out );
+		out[2] += 8.0f;
+	} else {
+		VectorSet( out, 0, 0, 48 );
+	}
+}
+
+void NW_GhostSpawnTurret( int wave ) {
+	gentity_t *t, *old;
+	vec3_t org;
+
+	if ( !NW_GhostActive() || wave < 8 ) {
+		return;
+	}
+	old = NULL;
+	while ( ( old = G_Find( old, FOFS( classname ), "ghost_detector_turret" ) ) != NULL ) {
+		old->classname = "ghost_detector_turret_x";
+		old->think = G_FreeEntity;
+		old->nextthink = level.time + 1;
+		old->r.contents = 0;
+		trap_UnlinkEntity( old );
+	}
+	GH_TurretPickOrigin( org );
+	t = G_Spawn();
+	t->classname = "ghost_detector_turret";
+	t->s.eType = ET_GENERAL;
+	t->s.modelindex = G_ModelIndex( "models/weapons2/rocketl/rocketl.md3" );
+	t->s.constantLight = GH_DET_LIGHT;
+	VectorCopy( org, t->s.origin );
+	VectorCopy( org, t->r.currentOrigin );
+	VectorCopy( org, t->s.pos.trBase );
+	t->s.pos.trType = TR_STATIONARY;
+	VectorSet( t->r.mins, -16, -16, 0 );
+	VectorSet( t->r.maxs, 16, 16, 40 );
+	t->r.contents = CONTENTS_BODY;
+	t->clipmask = MASK_SOLID;
+	t->takedamage = qtrue;
+	t->health = 120;
+	t->die = GH_TurretDie;
+	t->timestamp = 0;
+	trap_LinkEntity( t );
+	G_Printf( "NeonWave: DETECTOR turret (wave %i)\n", wave );
+}
+
 static void GH_DetectorThink( void ) {
 	int i, h;
-	gentity_t *det, *hum;
-	vec3_t toH, fwd, right, up;
-	float dist, cone;
+	gentity_t *det;
+	vec3_t fwd, right, up;
+
 	for ( h = 0; h < level.maxclients; h++ ) {
 		gh_inCone[h] = 0;
 	}
@@ -646,37 +781,27 @@ static void GH_DetectorThink( void ) {
 		if ( gh_lockUntil[i] > level.time ) continue;
 		det->s.constantLight = GH_DET_LIGHT;
 		AngleVectors( det->client->ps.viewangles, fwd, right, up );
-		for ( h = 0; h < level.maxclients; h++ ) {
-			hum = &g_entities[h];
-			if ( !hum->inuse || !hum->client ) continue;
-			if ( hum->r.svFlags & SVF_BOT ) continue;
-			if ( hum->health <= 0 ) continue;
-			if ( hum->client->ps.powerups[PW_INVIS] <= level.time ) continue;
-			VectorSubtract( hum->r.currentOrigin, det->r.currentOrigin, toH );
-			dist = VectorLength( toH );
-			if ( dist > GH_DETECT_RANGE ) continue;
-			if ( dist < 8.0f ) {
-				cone = 1.0f;
-			} else {
-				VectorNormalize( toH );
-				cone = DotProduct( fwd, toH );
+		GH_ScanCloak( det, fwd, &gh_lastWarn[i] );
+	}
+	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
+		det = &g_entities[i];
+		if ( !GH_IsTurret( det ) ) continue;
+		if ( det->health <= 0 ) continue;
+		if ( det->timestamp > level.time ) {
+			det->s.constantLight = GH_LOCK_LIGHT;
+			if ( ( level.time % 200 ) < 50 ) {
+				GH_LockBeam( det );
 			}
-			if ( cone < 0.76f ) continue;
-			if ( !gh_inCone[h] && gh_coneStart[h] == 0 ) {
-				gh_coneStart[h] = level.time;
-				trap_SendServerCommand( h, "cp \"SCANNING\n\"" );
-			}
-			gh_inCone[h] = 1;
-			GH_WarnLaser( det, hum );
-			if ( level.time - gh_coneStart[h] >= GH_WARN_MS ) {
-				NW_GhostBreakCloak( hum );
-				gh_swarmUntil = level.time + GH_SWARM_MS;
-				gh_inCone[h] = 0;
-				gh_coneStart[h] = 0;
-				trap_SendServerCommand( -1, "cp \"DETECTED\n\"" );
-				G_Printf( "Ghost: detector revealed client %i\n", h );
-			}
+			continue;
 		}
+		det->s.angles[YAW] += 2.0f;
+		if ( det->s.angles[YAW] > 360.0f ) {
+			det->s.angles[YAW] -= 360.0f;
+		}
+		VectorCopy( det->s.angles, det->s.apos.trBase );
+		det->s.constantLight = GH_DET_LIGHT;
+		AngleVectors( det->s.angles, fwd, right, up );
+		GH_ScanCloak( det, fwd, &gh_turretWarn );
 	}
 	for ( h = 0; h < level.maxclients; h++ ) {
 		if ( !gh_inCone[h] ) {

@@ -1919,6 +1919,7 @@ void NeonWave_StartWave( int num ) {
 					detSkill, num, d + 1 ) );
 		}
 		G_Printf( "NeonWave: DETECTOR spawned (wave %i, %i, skill %i)\n", num, nDet, detSkill );
+		NW_GhostSpawnTurret( num );
 	}
 }
 
