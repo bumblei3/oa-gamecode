@@ -710,7 +710,7 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_TELEPORTER ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_HEALER ) {
 		return forced;
 	}
 	// one step per boss wave so a classic 20-wave run sees all six types:
@@ -1418,7 +1418,7 @@ static void NW_PickModifier( int num ) {
 		NW_MOD_GLASS, NW_MOD_SWARM, NW_MOD_LOWGRAV, NW_MOD_DOUBLEPTS,
 		NW_MOD_TIMEWARP, NW_MOD_VAMPIRE, NW_MOD_FRENZY, NW_MOD_OVERSHIELD,
 		NW_MOD_MIRROR, NW_MOD_REGEN, NW_MOD_SURGE, NW_MOD_FROST, NW_MOD_CHAOS,
-		NW_MOD_MIMIC, NW_MOD_MIMIC
+		NW_MOD_MIMIC, NW_MOD_MIMIC, NW_MOD_SHIELD
 	};
 	int idx;
 	int maxWave;
