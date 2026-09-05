@@ -530,6 +530,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		}
 		NeonWave_TrackRunCombo( attacker->client->nwCombo );
 		NeonWave_OnDroneKill( attacker );
+		NW_MomentumOnKill( attacker );
 	}
 	// NeonWave dynamic difficulty: human death counter
 	if ( g_gametype.integer == GT_NEONWAVE
