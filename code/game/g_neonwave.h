@@ -12,7 +12,7 @@
 #define NW_WAVE_BREAK           12000   // ms between waves (perk shop)
 #define NW_MAX_WAVE             20
 #define NW_BOSS_WAVE            10      // from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT           7       // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER
+#define NW_BOSS_COUNT           8       // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER
 
 // CS_NEONWAVE payload events
 #define NW_EV_RUNNING           0
@@ -36,7 +36,8 @@
 #define NW_MOD_FROST            12      // slowed player (g_speed), frosty drones
 #define NW_MOD_CHAOS            13      // chaotic spawns: random skill + spawn delay
 #define NW_MOD_MIMIC            14      // drones copy a random upgrade value from a random human
-#define NW_MOD_POOL_SIZE        15
+#define NW_MOD_SHIELD           15      // temporary invulnerability at wave start
+#define NW_MOD_POOL_SIZE        16
 
 // achievements
 #define NW_ACH_FIRST_VICTORY    0       // cleared wave 20 (full run)
@@ -57,6 +58,7 @@
 #define NW_BOSS_WARDEN          5
 #define NW_BOSS_BERSERKER       6
 #define NW_BOSS_TELEPORTER      7
+#define NW_BOSS_HEALER          8
 
 // perk IDs
 #define NW_PERK_PIERCE          1

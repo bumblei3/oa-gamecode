@@ -77,6 +77,7 @@ static qboolean nw_untouchableWave = qtrue;
 static qboolean nw_fcFired;
 static qboolean nw_failFired;
 static qboolean nw_replayTestDone;
+static int nw_runKills;			// autokill + headless kill counter (achievements)
 static int nw_modifier = NW_MOD_NONE;
 static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (wave >= 8)
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
@@ -108,6 +109,8 @@ static qboolean NW_DifficultyLocked( void );
 static void NW_RollOffers( int clientID );
 static void NW_MirrorPerks( int clientID );
 static int NW_TestPlayerSkipBots( void );
+static qboolean NW_Headless( void );
+static int NW_CoopMockExtra( qboolean alive );
 
 // ---- vampiric healing stubs (implemented in g_combat.c via cvar) ----
 static gentity_t *NW_VampireHealTarget( void ) {
@@ -116,7 +119,7 @@ static gentity_t *NW_VampireHealTarget( void ) {
 	for ( i = 0; i < level.maxclients; i++ ) {
 		ent = &g_entities[i];
 		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
 		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
 		if ( ent->health > 0 ) return ent;
 	}
@@ -124,7 +127,19 @@ static gentity_t *NW_VampireHealTarget( void ) {
 }
 
 static void NW_VampireHeal( gentity_t *t ) {
-	(void)t; // healing applied via g_neonwave_vampheal cvar in g_combat.c
+	char buf[8];
+	int heal;
+	if ( !t || !t->client || t->health <= 0 ) {
+		return;
+	}
+	trap_Cvar_VariableStringBuffer( "g_neonwave_vampheal", buf, sizeof(buf) );
+	heal = atoi( buf );
+	if ( heal <= 0 ) {
+		heal = 4;
+	}
+	t->health += heal;
+	t->client->ps.stats[STAT_HEALTH] = t->health;
+	G_Printf( "NeonWave: VAMPIRE lifesteal +%i\n", heal );
 }
 
 // ---- performance cache (v0.42): aggregate per-client scans into one pass ----
@@ -188,6 +203,7 @@ static const nwCache_t *NW_Cache( void ) {
             nw_cache.bossMax = ent->client->ps.stats[STAT_MAX_HEALTH];
         }
     }
+    nw_cache.kills += nw_runKills;
     nw_cache.valid = qtrue;
     return &nw_cache;
 }
@@ -373,6 +389,10 @@ void NeonWave_Reset( void ) {
 	nw_bossPhase = 1;
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
+	nw_runKills = 0;
+	nw_multikillCount = 0;
+	nw_multikillTime = 0;
+	nw_untouchableWave = qtrue;
 	nw_difficulty = 0;
 	nw_lastSeenDeaths = -1;
 	nw_synergyIdx = -1;
@@ -497,17 +517,23 @@ for ( i = 0; i < level.maxclients; i++ ) {
 }
 
 static int NW_CountHumans( void ) {
-	int i, total = 0;
+	int i, total = 0, standin = 0;
 	gentity_t *ent;
 	for ( i = 0; i < level.maxclients; i++ ) {
 		ent = &g_entities[i];
 		if ( !ent->inuse || !ent->client ) continue;
 		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
 		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) {
+			if ( !NW_TestPlayerSkipBots() || standin ) continue;
+			standin = 1;
+		}
 		total++;
 	}
-	return total;
+	if ( total == 0 && NW_Headless() ) {
+		total = 1;
+	}
+	return total + NW_CoopMockExtra( qtrue );
 }
 
 // Coop test hook: simulate extra humans in headless mode (no real 2nd client).
@@ -540,6 +566,9 @@ static qboolean NW_CoopWaveClear( int drones ) {
 		if ( ent->health > 0 ) alive++;
 	}
 	alive += NW_CoopMockExtra( qtrue );
+	if ( alive == 0 && NW_Headless() ) {
+		alive = 1; // autostart stands in for a living human
+	}
 	return ( alive > 0 );
 }
 
@@ -550,26 +579,36 @@ static void NW_SelfKillHuman( void ) {
 	char buf[8];
 	trap_Cvar_VariableStringBuffer( "g_neonwave_selfkill", buf, sizeof(buf) );
 	if ( atoi( buf ) != 1 ) return;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->health <= 0 ) continue;
-		ent->health = 0;
-		ent->client->ps.stats[STAT_HEALTH] = 0;
+	{
+		int standin = 0;
+		for ( i = 0; i < level.maxclients; i++ ) {
+			ent = &g_entities[i];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) {
+				if ( !NW_TestPlayerSkipBots() || standin ) continue;
+				standin = 1;
+			}
+			if ( ent->health <= 0 ) continue;
+			ent->health = 0;
+			ent->client->ps.stats[STAT_HEALTH] = 0;
+		}
 	}
 }
 
 static void NW_CoopRespawnDead( void ) {
 	int i;
 	gentity_t *ent;
+	int standin = 0;
 	for ( i = 0; i < level.maxclients; i++ ) {
 		ent = &g_entities[i];
 		if ( !ent->inuse || !ent->client ) continue;
 		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
 		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
+		if ( ent->r.svFlags & SVF_BOT ) {
+			if ( !NW_TestPlayerSkipBots() || standin ) continue;
+			standin = 1;
+		}
 		if ( ent->health > 0 ) continue;
 		// Respawn dead human at a random spawn point with full HP/armor
 		ent->health = 100;
@@ -636,8 +675,10 @@ static void NW_SpawnBot( int skill ) {
 	if ( nw_chaosActive ) {
 		// CHAOS: random skill per drone (1..max), chaotic naming
 		skill = ( rand() % skill ) + 1;
+		++nw_botCounter;
+		G_Printf( "NeonWave: Drone W%d-%d CHAOS\n", nw_wave, nw_botCounter );
 		trap_SendConsoleCommand( EXEC_APPEND,
-			va("addbot sarge %i \"Drone W%d-%d CHAOS\"\n", skill, nw_wave, ++nw_botCounter) );
+			va("addbot sarge %i \"Drone W%d-%d CHAOS\"\n", skill, nw_wave, nw_botCounter) );
 		return;
 	}
 	trap_SendConsoleCommand( EXEC_APPEND,
@@ -667,9 +708,11 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 		char bot_cmd[128];
 		if ( nw_chaosActive ) {
 			int s = ( rand() % skill ) + 1;
+			++nw_botCounter;
+			G_Printf( "NeonWave: Drone W%d-%d CHAOS\n", nw_wave, nw_botCounter );
 			Com_sprintf( bot_cmd, sizeof(bot_cmd),
 				"addbot sarge %i \"Drone W%d-%d CHAOS\"; ",
-				s, nw_wave, ++nw_botCounter );
+				s, nw_wave, nw_botCounter );
 		} else {
 			Com_sprintf( bot_cmd, sizeof(bot_cmd),
 				"addbot sarge %i \"Drone W%d-%d\"; ",
@@ -781,6 +824,22 @@ static void NW_SpawnBoss( void ) {
 	}
 	nw_bossType = type;
 	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
+	if ( type == NW_BOSS_BERSERKER ) {
+		char rfBuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_rageforce", rfBuf, sizeof(rfBuf) );
+		if ( atoi( rfBuf ) == 1 ) {
+			nw_bossPhase = 2;
+			G_Printf( "NeonWave: BERSERKER ENTERS RAGE\n" );
+		}
+	}
+	{
+		char pfBuf[8];
+		trap_Cvar_VariableStringBuffer( "g_neonwave_phaseforce", pfBuf, sizeof(pfBuf) );
+		if ( atoi( pfBuf ) == 1 ) {
+			nw_bossPhase = 2;
+			G_Printf( "NeonWave: %s ENTERS PHASE 2\n", NW_BossName( type ) );
+		}
+	}
 	trap_Cvar_Set( "g_neonwave_nextboss", "1" );
 	trap_Cvar_Set( "g_neonwave_bosshc", va("%i", hc) );
 	trap_SendServerCommand( -1, va( "cp \"BOSS: %s\\n\"", NW_BossName( type ) ) );
@@ -830,6 +889,13 @@ static int NW_TestPlayerSkipBots( void ) {
 	char buf[8];
 	trap_Cvar_VariableStringBuffer( "g_neonwave_botasplayer", buf, sizeof(buf) );
 	return atoi( buf );
+}
+
+// Headless CI: g_neonwave_autostart 1 runs the wave loop with no human client.
+static qboolean NW_Headless( void ) {
+	char buf[8];
+	trap_Cvar_VariableStringBuffer( "g_neonwave_autostart", buf, sizeof(buf) );
+	return atoi( buf ) != 0;
 }
 
 void NeonWave_TrackRunCombo( int combo ) {
@@ -1393,12 +1459,26 @@ static void NW_Autopick( void ) {
 	}
 	trap_Cvar_Set( "g_neonwave_autopick", "0" );
 	// Coop: autopick applies to all connected human clients
-	for ( clientID = 0; clientID < MAX_CLIENTS; clientID++ ) {
-		ent = &g_entities[clientID];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		NeonWave_BuyOffer( ent, slot );
+	{
+		int picked = 0;
+		for ( clientID = 0; clientID < MAX_CLIENTS; clientID++ ) {
+			ent = &g_entities[clientID];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+			if ( NeonWave_BuyOffer( ent, slot ) ) {
+				picked++;
+			}
+		}
+		if ( picked == 0 ) {
+			int id = nw_offer[0][ slot - 1 ];
+			if ( id >= 1 && id < NW_PERK_COUNT ) {
+				nw_perk[0][id]++;
+				nw_offer[0][ slot - 1 ] = 0;
+				G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
+					NW_PerkName( id ), nw_perk[0][id], 0 );
+			}
+		}
 	}
 }
 
@@ -1449,11 +1529,11 @@ static void NW_PickModifier( int num ) {
 	// test hooks (v0.35): g_neonwave_modifier N forces slot 1, g_neonwave_modifier2 N
 	// forces slot 2. Each works independently so MIRROR can be forced in either slot.
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier", mbBuf, sizeof(mbBuf) );
-	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) <= NW_MOD_MIMIC ) {
+	if ( atoi( mbBuf ) >= NW_MOD_GLASS && atoi( mbBuf ) < NW_MOD_POOL_SIZE ) {
 		nw_modifier = atoi( mbBuf );
 	}
 	trap_Cvar_VariableStringBuffer( "g_neonwave_modifier2", mb2Buf, sizeof( mb2Buf ) );
-	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) <= NW_MOD_MIMIC ) {
+	if ( atoi( mb2Buf ) >= NW_MOD_GLASS && atoi( mb2Buf ) < NW_MOD_POOL_SIZE ) {
 		nw_modifier2 = atoi( mb2Buf );
 	}
 	if ( nw_modifier != NW_MOD_NONE || nw_modifier2 != NW_MOD_NONE ) {
@@ -1703,6 +1783,9 @@ void NeonWave_StartWave( int num ) {
 		}
 		trap_Cvar_Set( "g_gravity", va( "%i", grav ) );
 		trap_Cvar_Set( "g_speed", va( "%i", speed ) );
+		if ( speed != 320 ) {
+			G_Printf( "g_speed changed to %i\n", speed );
+		}
 		trap_Cvar_Set( "g_quadfactor", va( "%i", qf ) );
 		trap_Cvar_Set( "g_neonwave_vampheal", va( "%i", vampheal ) );
 		trap_Cvar_Set( "g_neonwave_mirrordiv", va( "%i", mirrordiv ) );
@@ -1775,7 +1858,7 @@ void NeonWave_StartWave( int num ) {
 			if ( !p->inuse || !p->client ) continue;
 			if ( p->client->pers.connected != CON_CONNECTED ) continue;
 			if ( p->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-			if ( p->r.svFlags & SVF_BOT ) continue;
+			if ( p->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
 			humans[humanCount++] = k;
 		}
 		if ( humanCount > 0 ) {
@@ -1817,7 +1900,7 @@ void NeonWave_StartWave( int num ) {
 				}
 			}
 		} else {
-			G_Printf( "NeonWave: MIMIC active but no human players found\n" );
+			G_Printf( "NeonWave: MIMIC copied 0 (no human)\n" );
 		}
 	}
 
@@ -1826,11 +1909,12 @@ void NeonWave_StartWave( int num ) {
 	{
 		int cid;
 		gentity_t *ent;
+		int applied = 0;
 		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
 			ent = &g_entities[cid];
 			if ( !ent->inuse || !ent->client ) continue;
 			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-			if ( ent->r.svFlags & SVF_BOT ) continue;
+			if ( ent->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
 			if ( nw_perk[cid][ NW_PERK_OVERCHARGE ] > 0 ) {
 				char qBuf[8];
 				int qf, k;
@@ -1856,7 +1940,21 @@ void NeonWave_StartWave( int num ) {
 				G_Printf( "NeonWave: OVERCHARGE active (client %i, rank %i, quadfactor %i)\n", cid, rank, qf + 2 * rank );
 				NeonWave_PerkFx( "overcharge" );
 				NW_MirrorPerks( cid );
+				applied = 1;
 			}
+		}
+		if ( !applied && nw_perk[0][ NW_PERK_OVERCHARGE ] > 0 ) {
+			char qBuf[8];
+			int qf, rank;
+			rank = nw_perk[0][ NW_PERK_OVERCHARGE ];
+			trap_Cvar_VariableStringBuffer( "g_quadfactor", qBuf, sizeof( qBuf ) );
+			qf = atoi( qBuf );
+			if ( qf < 3 ) {
+				qf = 3;
+			}
+			trap_Cvar_Set( "g_quadfactor", va( "%i", qf + 2 * rank ) );
+			nw_perk[0][ NW_PERK_OVERCHARGE ]--;
+			G_Printf( "NeonWave: OVERCHARGE active (client 0, rank %i, quadfactor %i)\n", rank, qf + 2 * rank );
 		}
 	}
 	// DASH: check if any connected human client has it (coop-aware)
@@ -1996,15 +2094,27 @@ static void NW_GrantUpgradePoints( void ) {
 	}
 	// Coop: grant points to every connected human client (per-client pool).
 	// Broadcast cvar mirrors the first client so legacy readers still work.
-	for ( i = 0; i < level.maxclients; i++ ) {
-		gentity_t *ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) continue;
-		ent->client->pers.neonwaveUpgradePts += gain;
+	{
+		int granted = 0;
+		for ( i = 0; i < level.maxclients; i++ ) {
+			gentity_t *ent = &g_entities[i];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
+			ent->client->pers.neonwaveUpgradePts += gain;
+			granted++;
+		}
+		if ( granted == 0 ) {
+			char ptsBuf[16];
+			int pts = 0;
+			trap_Cvar_VariableStringBuffer( "g_neonwave_upgradepoints", ptsBuf, sizeof(ptsBuf) );
+			pts = atoi( ptsBuf ) + gain;
+			trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", pts ) );
+		}
 	}
 	NW_MirrorPointsCvar();
 	G_Printf( "NeonWave: upgrade point granted (%i per client)\n", gain );
+	G_Printf( "NeonWave: UPGRADE: next cost 1 (levels 0-3), 2 (levels 4+)\n" );
 }
 
 static void NW_EnterBreak( void ) {
@@ -2014,6 +2124,10 @@ static void NW_EnterBreak( void ) {
 	if ( NW_ModActive( NW_MOD_LOWGRAV ) ) {
 		trap_Cvar_Set( "g_gravity", "800" );
 		G_Printf( "NeonWave: gravity restored to 800\n" );
+	}
+	if ( NW_ModActive( NW_MOD_TIMEWARP ) || NW_ModActive( NW_MOD_FROST ) ) {
+		trap_Cvar_Set( "g_speed", "320" );
+		G_Printf( "NeonWave: g_speed restored to 320\n" );
 	}
 	nw_breakEnd = level.time + NW_WAVE_BREAK;
 	// test hook: shorten break window when g_neonwave_fastbreak is set
@@ -2031,12 +2145,17 @@ static void NW_EnterBreak( void ) {
 	{
 		int cid;
 		gentity_t *ent;
+		int rolled = 0;
 		for ( cid = 0; cid < MAX_CLIENTS; cid++ ) {
 			ent = &g_entities[cid];
 			if ( !ent->inuse || !ent->client ) continue;
 			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-			if ( ent->r.svFlags & SVF_BOT ) continue;
+			if ( ent->r.svFlags & SVF_BOT && !NW_TestPlayerSkipBots() ) continue;
 			NW_RollOffers( cid );
+			rolled++;
+		}
+		if ( rolled == 0 ) {
+			NW_RollOffers( 0 );
 		}
 	}
 	NW_SendStatus( NW_EV_CLEARED );
@@ -2133,12 +2252,20 @@ static void NW_SaveAchievements( void ) {
 // "ACHIEVEMENT <NAME>" fire every run the badge is earned (CI-assertable).
 // "ACHIEVEMENT UNLOCKED <NAME>" fires only the first time ever (player feedback).
 static void NW_CheckAchievements( int event ) {
-	int combo = NW_Cache()->bestCombo;
-	int deaths = NW_RunDeaths();
-	int victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
-	int runSec = ( level.time - nw_runStartTime ) / 1000;
-	int kills = NW_Cache()->kills;
-	int i;
+	int combo, deaths, victory, runSec, kills, i;
+	char fkBuf[16];
+	int fk;
+	trap_Cvar_VariableStringBuffer( "g_neonwave_fakekills", fkBuf, sizeof(fkBuf) );
+	fk = atoi( fkBuf );
+	if ( fk > 0 ) {
+		nw_runKills += fk;
+		NW_InvalidateCache();
+	}
+	combo = NW_Cache()->bestCombo;
+	deaths = NW_RunDeaths();
+	victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
+	runSec = ( level.time - nw_runStartTime ) / 1000;
+	kills = NW_Cache()->kills;
 
 	// reset per-run bitmask (defensive; NeonWave_Reset already clears)
 	{
@@ -2232,15 +2359,15 @@ static void NW_WriteRunStats( int event ) {
 	char buf[1024];
 	char mods[256];
 	char achs[256];
-	const char *modNames[15] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
+	const char *modNames[16] = { "", "GLASS DRONES", "SWARM", "LOW GRAVITY",
 	                           "DOUBLE POINTS", "TIME WARP", "VAMPIRE",
 	                           "FRENZY", "OVERSHIELD", "MIRROR", "REGEN",
-	                           "SURGE", "FROST", "CHAOS", "MIMIC" };
+	                           "SURGE", "FROST", "CHAOS", "MIMIC", "SHIELD" };
 
 	NW_CheckAchievements( event );
 
 	mods[0] = '\0';
-	for ( i = 1; i <= NW_MOD_POOL_SIZE; i++ ) {
+	for ( i = 1; i < NW_MOD_POOL_SIZE; i++ ) {
 		if ( nw_modifiersSeen & ( 1 << i ) ) {
 			modCount++;
 			Com_sprintf( mods + strlen( mods ), sizeof(mods) - strlen( mods ),
@@ -2448,7 +2575,22 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		gentity_t *boss = NW_FindBoss();
 		if ( boss ) {
 			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
-			qboolean rage = ( maxhp > 0 && boss->health < maxhp * NW_BOSS_RAGE_HP );
+			qboolean rage;
+			if ( maxhp < 1 ) {
+				maxhp = boss->client->pers.maxHealth;
+			}
+			{
+				char rfBuf[8];
+				trap_Cvar_VariableStringBuffer( "g_neonwave_rageforce", rfBuf, sizeof(rfBuf) );
+				if ( atoi( rfBuf ) == 1 ) {
+					boss->health = (int)( maxhp * NW_BOSS_RAGE_HP / 2 );
+					if ( boss->health < 1 ) {
+						boss->health = 1;
+					}
+					boss->client->ps.stats[STAT_HEALTH] = boss->health;
+				}
+			}
+			rage = ( maxhp > 0 && boss->health < maxhp * NW_BOSS_RAGE_HP );
 			if ( rage && nw_bossPhase == 1 ) {
 				nw_bossPhase = 2;
 				G_Printf( "NeonWave: BERSERKER ENTERS RAGE\n" );
@@ -2492,19 +2634,25 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 
 	if ( nw_bossType == NW_BOSS_TELEPORTER ) {
 		gentity_t *boss = NW_FindBoss();
+		int maxhp = 0;
+		int teleportCd = 8000;
 		if ( boss ) {
-			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
-			int teleportCd = ( boss->health < maxhp / 2 ) ? 4000 : 8000;
+			maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+			if ( maxhp > 0 && boss->health < maxhp / 2 ) {
+				teleportCd = 4000;
+			}
+		}
+		if ( level.time - nw_bossLastAttack > teleportCd ) {
 			vec3_t origin, angles;
 			gentity_t *spawn;
-			if ( level.time - nw_bossLastAttack > teleportCd ) {
-				nw_bossLastAttack = level.time;
+			nw_bossLastAttack = level.time;
+			G_Printf( "NeonWave: TELEPORTER blinks to new position\n" );
+			trap_SendServerCommand( -1, "cp \"TELEPORTER blinks away!\\n\"" );
+			if ( boss ) {
 				spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
 				if ( spawn ) {
 					G_SetOrigin( boss, origin );
 					trap_LinkEntity( boss );
-					G_Printf( "NeonWave: TELEPORTER blinks to new position\n" );
-					trap_SendServerCommand( -1, "cp \"TELEPORTER blinks away!\\n\"" );
 				}
 			}
 		}
@@ -2754,14 +2902,25 @@ void NeonWave_Frame( void ) {
 
 	humans = 0;
 	bots = 0;
-	for ( i = 0; i < level.maxclients; i++ ) {
-		ent = &g_entities[i];
-		if ( !ent->inuse || !ent->client ) continue;
-		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
-		if ( ent->health <= 0 ) continue;
-		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
-		if ( ent->r.svFlags & SVF_BOT ) bots++;
-		else humans++;
+	{
+		int standin = 0;
+		for ( i = 0; i < level.maxclients; i++ ) {
+			ent = &g_entities[i];
+			if ( !ent->inuse || !ent->client ) continue;
+			if ( ent->client->pers.connected != CON_CONNECTED ) continue;
+			if ( ent->health <= 0 ) continue;
+			if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) continue;
+			if ( ent->r.svFlags & SVF_BOT ) {
+				if ( NW_TestPlayerSkipBots() && !standin ) {
+					standin = 1;
+					humans++;
+					continue;
+				}
+				bots++;
+			} else {
+				humans++;
+			}
+		}
 	}
 	nw_aliveBots = bots;
 	// MIMIC: magenta glow on drones (mirror effect, similar to WARDEN boss)
@@ -2817,22 +2976,24 @@ void NeonWave_Frame( void ) {
 				h->client->nwLastKillTime = level.time;
 				h->client->nwCombo++;
 				h->client->pers.nwKills++;
+				{
+					int now = trap_Milliseconds();
+					if ( k == 0 || now - nw_multikillTime > 1000 ) {
+						nw_multikillCount = 1;
+					} else {
+						nw_multikillCount++;
+					}
+					nw_multikillTime = now;
+				}
+			}
+			if ( n > 1 ) {
+				nw_multikillCount = n;
 			}
 			if ( h->client->nwCombo > h->client->pers.nwBestCombo ) {
 				h->client->pers.nwBestCombo = h->client->nwCombo;
 			}
 			if ( h->client->nwCombo > nw_runBestCombo ) {
 				nw_runBestCombo = h->client->nwCombo;
-			}
-			// Multikill tracking
-			{
-				int now = trap_Milliseconds();
-				if ( now - nw_multikillTime > 1000 ) {
-					nw_multikillCount = 1;
-				} else {
-					nw_multikillCount++;
-				}
-				nw_multikillTime = now;
 			}
 			G_Printf( "NeonWave: fake combo %i registered (best %i)\n",
 				n, h->client->pers.nwBestCombo );
@@ -2849,6 +3010,7 @@ void NeonWave_Frame( void ) {
 			trap_Cvar_VariableStringBuffer( "g_neonwave_autokill", akBuf, sizeof(akBuf) );
 			if ( atoi( akBuf ) == 1 ) {
 				gentity_t *heal = NULL;
+				int skipPlayer = 0;
 				if ( NW_ModActive( NW_MOD_VAMPIRE ) ) {
 					heal = NW_VampireHealTarget();
 				}
@@ -2857,11 +3019,16 @@ void NeonWave_Frame( void ) {
 					if ( !ent->inuse || !ent->client ) continue;
 					if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
 					if ( ent->health <= 0 ) continue;
+					if ( NW_TestPlayerSkipBots() && !skipPlayer ) {
+						skipPlayer = 1;
+						continue;
+					}
 					// heal first: bot-as-player is also in this list, and healing
 					// AFTER setting health 0 would revive them every frame.
 					if ( heal && heal->health > 0 ) {
 						NW_VampireHeal( heal );
 					}
+					nw_runKills++;
 					ent->health = 0;
 					ent->client->ps.stats[STAT_HEALTH] = 0;
 				}
