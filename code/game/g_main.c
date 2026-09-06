@@ -247,6 +247,15 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_ghost_nukecd", "0", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_lockcd", "0", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_status", "", CVAR_ROM, 0, qtrue },
+
+	// Test CVars (for automated testing)
+	{ NULL, "g_neonwave_bosstype", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_autostart", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_startwave", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_fastbreak", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_autokill", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_failrun", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_modifier", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_momentum", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_momentum_decay", "5", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_momentum_kill", "15", CVAR_ARCHIVE, 0, qtrue },
