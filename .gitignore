@@ -1,6 +1,7 @@
-build
+build/
 linux_scripts/supermake.local
 Makefile.local
 *~
 nbproject
 windows
+highscore.dat

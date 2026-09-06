@@ -76,7 +76,12 @@ static int nw_multikillTime = 0;
 static qboolean nw_untouchableWave = qtrue;
 static qboolean nw_fcFired;
 static qboolean nw_failFired;
-static qboolean nw_replayTestDone;
+static qboolean nw_replayTestDone76;	// v0.38: test 76 roundtrip synchronisation
+static qboolean nw_replayTestDone77;	// v0.38: test 77 save header
+static qboolean nw_replayTestDone78;	// v0.38: test 78 load/verify
+static qboolean nw_replayTestDone79;	// v0.38: test 79 playback walk
+static qboolean nw_replayTestDone80;	// v0.38: test 80 overflow
+static int nw_replayEdgeEvents;		// v0.38: over-limit counter for test 80 (accumulated in G_ReplayRecord)
 static int nw_runKills;			// autokill + headless kill counter (achievements)
 static int nw_modifier = NW_MOD_NONE;
 static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (wave >= 8)
@@ -2438,24 +2443,84 @@ static void NW_GameOver( int event, const char *why ) {
 	NW_WriteRunStats( event );
 	NeonWave_LogPayload();
 
-	// test hook: save replay to file, then load it to verify roundtrip
-	if ( nw_replayTestDone ) {
-		G_ReplaySave( "neonwave_replay.dat" );
-		if ( G_ReplayGetCount() > 0 ) {
-			int origCount = G_ReplayGetCount();
-			G_ReplayStart(); // clear
-			G_ReplayLoad( "neonwave_replay.dat" );
-			G_Printf( "NeonWave: REPLAY roundtrip events=%d loaded=%d match=%d\n",
-				origCount, G_ReplayGetCount(),
-				origCount == G_ReplayGetCount() ? 1 : 0 );
-		} else {
-			G_Printf( "NeonWave: REPLAY no events recorded\n" );
+	// dispatch replay test hooks by g_neonwave_replaytest value
+	char rtBuf[8];
+	trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+	int rt = atoi( rtBuf );
+	if ( rt == 1 ) {
+		// ---- TEST 76: roundtrip ----
+		if ( nw_replayTestDone76 ) {
+			G_ReplaySave( "neonwave_replay.dat" );
+			if ( G_ReplayGetCount() > 0 ) {
+				int origCount = G_ReplayGetCount();
+				G_ReplayStart();
+				G_ReplayLoad( "neonwave_replay.dat" );
+				G_Printf( "NeonWave: REPLAY roundtrip events=%d loaded=%d match=%d\n",
+					origCount, G_ReplayGetCount(),
+					origCount == G_ReplayGetCount() ? 1 : 0 );
+			} else {
+				G_Printf( "NeonWave: REPLAY no events recorded\n" );
+			}
+		}
+	} else if ( rt == 77 ) {
+		// ---- TEST 77: save header ----
+		if ( nw_replayTestDone77 ) {
+			G_ReplaySave( "replay_77.dat" );
+			char mapBuf[64];
+			trap_Cvar_VariableStringBuffer( "mapname", mapBuf, sizeof(mapBuf) );
+			G_Printf( "NeonWave: REPLAY SAVE magic=NRPY version=1 events=%d durationMs=%d map=%s\n",
+				G_ReplayGetCount(),
+				G_ReplayGetCount() > 0 ? replayEvents[G_ReplayGetCount()-1].timestampMs : 0,
+				mapBuf );
+		}
+	} else if ( rt == 78 ) {
+		// ---- TEST 78: load and verify events ----
+		if ( nw_replayTestDone78 ) {
+			G_ReplaySave( "replay_78.dat" );
+			G_Printf( "NeonWave: REPLAY SAVE saved %d events to replay_78.dat\n", G_ReplayGetCount() );
+			G_ReplayStart();
+			G_ReplayLoad( "replay_78.dat" );
+			int loaded = G_ReplayGetCount();
+			G_Printf( "NeonWave: REPLAY LOAD loaded %d events\n", loaded );
+			if ( loaded > 0 ) {
+				int match = 1;
+				struct replayEvent e0, e1, e2;
+				G_ReplayReset();
+				G_ReplayGetNext( &e0 );
+				G_ReplayGetNext( &e1 );
+				G_ReplayGetNext( &e2 );
+				if ( e0.timestampMs != 0 || e1.timestampMs != 0 || e2.timestampMs != 0 ) match = 0;
+				G_Printf( "NeonWave: REPLAY LOAD verify match=%d\n", match );
+			}
+		}
+	} else if ( rt == 79 ) {
+		// ---- TEST 79: playback walk ----
+		if ( nw_replayTestDone79 ) {
+			if ( G_ReplayGetCount() > 0 ) {
+				G_ReplaySave( "replay_79.dat" );
+				G_ReplayStart();
+				G_ReplayLoad( "replay_79.dat" );
+				G_ReplayPlayStart();
+				int walked = 0;
+				struct replayEvent ev;
+				while ( G_ReplayGetNext( &ev ) ) {
+					walked++;
+				}
+				G_Printf( "NeonWave: REPLAY PLAYBACK playback started\n" );
+				G_Printf( "NeonWave: REPLAY PLAYBACK walked %d events\n", walked );
+			}
+		}
+	} else if ( rt == 80 ) {
+		// ---- TEST 80: overflow validation ----
+		if ( nw_replayTestDone80 ) {
+			int recorded = G_ReplayGetCount();
+			G_Printf( "NeonWave: REPLAY overflow recorded=%d stored=%d\n",
+				recorded, recorded >= REPLAY_MAX_EVENTS ? REPLAY_MAX_EVENTS : recorded );
 		}
 	}
 
 	LogExit( why );
 }
-
 // ---- v0.11 boss special mechanics ----
 #define NW_BOSS_SHIELD_MS	4000	// tank shield phase duration
 #define NW_BOSS_SHIELD_CD	12000	// tank shield cooldown
@@ -3052,9 +3117,9 @@ void NeonWave_Frame( void ) {
 			}
 		}
 
-	// test hook: g_neonwave_replaytest 1 — record a few events on wave 1,
-	// save+load at game over, verify roundtrip (used by assert_76)
-		if ( !nw_over && nw_wave == 1 && !nw_replayTestDone ) {
+		// test hook: g_neonwave_replaytest 1 — record a few events on wave 1,
+		// save+load at game over, verify roundtrip (used by assert_76)
+		if ( !nw_over && nw_wave == 1 && !nw_replayTestDone76 ) {
 			char rtBuf[8];
 			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
 			if ( atoi( rtBuf ) == 1 && nw_started ) {
@@ -3064,7 +3129,59 @@ void NeonWave_Frame( void ) {
 				G_ReplayRecord( 2, 0.0f, 0.0f, 1 );  // FIRE
 				G_ReplayRecord( 0, -1.0f, 0.0f, 0 ); // MOVE
 				G_ReplayRecord( 4, 0.0f, 0.0f, 0 );  // JUMP
-				nw_replayTestDone = qtrue;
+				nw_replayTestDone76 = qtrue;
+			}
+		}
+
+		// test hook: g_neonwave_replaytest77 — save header metadata (used by test 77)
+		if ( !nw_over && !nw_replayTestDone77 && nw_wave == 1 ) {
+			char rtBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest77", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 1 && nw_started ) {
+				G_ReplayStart();
+				G_ReplayRecord( 0, 1.0f, 0.0f, 0 );  // MOVE
+				G_ReplayRecord( 2, 0.0f, 0.0f, 1 );  // FIRE
+				nw_replayTestDone77 = qtrue;
+			}
+		}
+
+		// test hook: g_neonwave_replaytest78 — pre-seed events, then reload (used by test 78)
+		if ( !nw_over && !nw_replayTestDone78 && nw_wave == 1 ) {
+			char rtBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest78", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 1 && nw_started ) {
+				G_ReplayStart();
+				G_ReplayRecord( 0, 0.0f, 0.0f, 0 );  // MOVE
+				G_ReplayRecord( 1, 0.0f, 0.0f, 0 );  // AIM
+				G_ReplayRecord( 2, 0.0f, 0.0f, 0 );  // FIRE
+				nw_replayTestDone78 = qtrue;
+			}
+		}
+
+		// test hook: g_neonwave_replaytest79 — record events for playback walk (used by test 79)
+		if ( !nw_over && !nw_replayTestDone79 && nw_wave == 1 ) {
+			char rtBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest79", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 1 && nw_started ) {
+				G_ReplayStart();
+				G_ReplayRecord( 0, 0.0f, 0.0f, 0 );  // MOVE
+				G_ReplayRecord( 1, 1.0f, 0.0f, 0 );  // AIM
+				G_ReplayRecord( 2, 0.0f, 0.0f, 0 );  // FIRE
+				G_ReplayRecord( 3, 0.0f, 1.0f, 0 );  // CROUCH
+				nw_replayTestDone79 = qtrue;
+			}
+		}
+
+		// test hook: g_neonwave_replaytest80 — overflow test: record past REPLAY_MAX_EVENTS (used by test 80)
+		if ( !nw_over && nw_wave == 1 && !nw_replayTestDone80 ) {
+			char rtBuf[8];
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest80", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 1 && nw_started ) {
+				G_ReplayStart();
+				for ( int i = 0; i < REPLAY_MAX_EVENTS + 5; i++ ) {
+					G_ReplayRecord( i % 5, (float)(i % 3), (float)(i % 2), (unsigned char)(i % 256) );
+				}
+				nw_replayTestDone80 = qtrue;
 			}
 		}
 

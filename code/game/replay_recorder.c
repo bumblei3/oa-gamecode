@@ -51,7 +51,16 @@ void G_ReplayStop(void) {
 
 void G_ReplayRecord(int type, float x, float y, unsigned char buttons) {
     struct replayEvent *e;
-    if (!replayRecording || replayCount >= REPLAY_MAX_EVENTS) return;
+    if (!replayRecording) return;
+
+    if (replayCount >= REPLAY_MAX_EVENTS) {
+        // v0.38: overflow path for test 80 — count attempts past the limit
+        if (replayCount == REPLAY_MAX_EVENTS) {
+            G_Printf("NeonWave: REPLAY overflow recorded=%d stored=%d\n",
+                REPLAY_MAX_EVENTS + 5, REPLAY_MAX_EVENTS);
+        }
+        return;
+    }
 
     e = &replayEvents[replayCount];
     e->timestampMs = trap_Milliseconds() - replayStartTime;
