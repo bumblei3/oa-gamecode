@@ -5,10 +5,27 @@
 #ifdef NEONARENA_MOD
 
 #define GH_ENERGY_MAX		100
-#define GH_ENERGY_START		55
+#define GH_ENERGY_START		60
 #define GH_ENERGY_KILL		15
 #define GH_REGEN_MS		1000
-#define GH_REGEN_AMT		3
+#define GH_REGEN_AMT		4
+
+static int gh_cvar_start;
+static int gh_cvar_max;
+static int gh_cvar_regen;
+
+static void GH_ReadCvars( void ) {
+	char buf[8];
+	trap_Cvar_VariableStringBuffer( "g_ghost_energy_start", buf, sizeof(buf) );
+	gh_cvar_start = atoi( buf );
+	if ( gh_cvar_start <= 0 ) gh_cvar_start = GH_ENERGY_START;
+	trap_Cvar_VariableStringBuffer( "g_ghost_energy_max", buf, sizeof(buf) );
+	gh_cvar_max = atoi( buf );
+	if ( gh_cvar_max <= 0 ) gh_cvar_max = GH_ENERGY_MAX;
+	trap_Cvar_VariableStringBuffer( "g_ghost_regen_amt", buf, sizeof(buf) );
+	gh_cvar_regen = atoi( buf );
+	if ( gh_cvar_regen <= 0 ) gh_cvar_regen = GH_REGEN_AMT;
+}
 #define GH_CLOAK_COST		25
 #define GH_CLOAK_DRAIN		5
 #define GH_AMBUSH_MS		2000
@@ -173,8 +190,9 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	if ( !NW_GhostActive() ) {
 		return;
 	}
+	GH_ReadCvars();
 	id = GH_Id( ent );
-	gh_energy[id] = GH_ENERGY_START;
+	gh_energy[id] = gh_cvar_start;
 	gh_lastRegen[id] = level.time;
 	gh_empUntil[id] = 0;
 	gh_lockUntil[id] = 0;
@@ -188,7 +206,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	gh_coneStart[id] = 0;
 	gh_inCone[id] = 0;
 	ent->client->ps.powerups[PW_INVIS] = 0;
-	ent->client->ps.stats[STAT_GHOST_ENERGY] = GH_ENERGY_START;
+	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_cvar_start;
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ST] = 0;
 }
@@ -206,8 +224,8 @@ void NW_GhostOnKill( gentity_t *attacker ) {
 	}
 	id = GH_Id( attacker );
 	gh_energy[id] += GH_ENERGY_KILL;
-	if ( gh_energy[id] > GH_ENERGY_MAX ) {
-		gh_energy[id] = GH_ENERGY_MAX;
+	if ( gh_energy[id] > gh_cvar_max ) {
+		gh_energy[id] = gh_cvar_max;
 	}
 }
 
@@ -472,8 +490,8 @@ static void GH_LockRefund( gentity_t *owner ) {
 	}
 	gh_lockFlying[id] = 0;
 	gh_energy[id] += GH_LOCK_COST;
-	if ( gh_energy[id] > GH_ENERGY_MAX ) {
-		gh_energy[id] = GH_ENERGY_MAX;
+	if ( gh_energy[id] > gh_cvar_max ) {
+		gh_energy[id] = gh_cvar_max;
 	}
 	trap_SendServerCommand( id, "print \"Lockdown missed\n\"" );
 }
@@ -857,9 +875,9 @@ void NW_GhostFrame( void ) {
 					trap_SendServerCommand( id, "cp \"DECLOAKED\n\"" );
 				}
 			} else {
-				gh_energy[id] += GH_REGEN_AMT;
-				if ( gh_energy[id] > GH_ENERGY_MAX ) {
-					gh_energy[id] = GH_ENERGY_MAX;
+				gh_energy[id] += gh_cvar_regen;
+				if ( gh_energy[id] > gh_cvar_max ) {
+					gh_energy[id] = gh_cvar_max;
 				}
 			}
 			gh_lastRegen[id] = level.time;

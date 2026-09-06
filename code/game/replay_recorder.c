@@ -9,25 +9,10 @@
 #define REPLAY_VERSION 1
 #define REPLAY_MAX_EVENTS 32768
 
-// Define structs at top of #ifdef for q3lcc (C89 requires types before use)
-struct replayEvent {
-    unsigned int timestampMs;
-    unsigned char type;
-    float x, y;
-    unsigned char buttons;
-};
 
-struct replayHeader {
-    unsigned int magic;
-    unsigned short version;
-    unsigned short reserved;
-    unsigned int eventCount;
-    unsigned int durationMs;
-    char mapName[64];
-};
 
-static struct replayEvent replayEvents[REPLAY_MAX_EVENTS];
-static int replayCount = 0;
+struct replayEvent replayEvents[REPLAY_MAX_EVENTS];
+int replayCount = 0;
 static qboolean replayRecording = qfalse;
 static qboolean replayPlaying = qfalse;
 static int replayPlaybackIdx = 0;

@@ -9,6 +9,7 @@
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
 #define NW_BOSS_COUNT		8	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER
+#define REPLAY_MAX_EVENTS	32768	// max events in replay buffer (must match replay_recorder.c)
 
 // Test hooks (used by CI smoke test):
 //   g_neonwave_autostart 1   -> waves start without a human player (headless test)
@@ -2419,6 +2420,9 @@ static void NW_WriteRunStats( int event ) {
 }
 
 static void NW_GameOver( int event, const char *why ) {
+	char rtBuf[8];
+	int rt;
+
 	if ( nw_over ) {
 		return;
 	}
@@ -2444,9 +2448,8 @@ static void NW_GameOver( int event, const char *why ) {
 	NeonWave_LogPayload();
 
 	// dispatch replay test hooks by g_neonwave_replaytest value
-	char rtBuf[8];
 	trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
-	int rt = atoi( rtBuf );
+	rt = atoi( rtBuf );
 	if ( rt == 1 ) {
 		// ---- TEST 76: roundtrip ----
 		if ( nw_replayTestDone76 ) {
@@ -2464,9 +2467,9 @@ static void NW_GameOver( int event, const char *why ) {
 		}
 	} else if ( rt == 77 ) {
 		// ---- TEST 77: save header ----
+		char mapBuf[64];
 		if ( nw_replayTestDone77 ) {
 			G_ReplaySave( "replay_77.dat" );
-			char mapBuf[64];
 			trap_Cvar_VariableStringBuffer( "mapname", mapBuf, sizeof(mapBuf) );
 			G_Printf( "NeonWave: REPLAY SAVE magic=NRPY version=1 events=%d durationMs=%d map=%s\n",
 				G_ReplayGetCount(),
@@ -2475,16 +2478,18 @@ static void NW_GameOver( int event, const char *why ) {
 		}
 	} else if ( rt == 78 ) {
 		// ---- TEST 78: load and verify events ----
+		int loaded;
+		int match;
+		struct replayEvent e0, e1, e2;
 		if ( nw_replayTestDone78 ) {
 			G_ReplaySave( "replay_78.dat" );
 			G_Printf( "NeonWave: REPLAY SAVE saved %d events to replay_78.dat\n", G_ReplayGetCount() );
 			G_ReplayStart();
 			G_ReplayLoad( "replay_78.dat" );
-			int loaded = G_ReplayGetCount();
+			loaded = G_ReplayGetCount();
 			G_Printf( "NeonWave: REPLAY LOAD loaded %d events\n", loaded );
 			if ( loaded > 0 ) {
-				int match = 1;
-				struct replayEvent e0, e1, e2;
+				match = 1;
 				G_ReplayReset();
 				G_ReplayGetNext( &e0 );
 				G_ReplayGetNext( &e1 );
@@ -2495,14 +2500,14 @@ static void NW_GameOver( int event, const char *why ) {
 		}
 	} else if ( rt == 79 ) {
 		// ---- TEST 79: playback walk ----
+		int walked = 0;
+		struct replayEvent ev;
 		if ( nw_replayTestDone79 ) {
 			if ( G_ReplayGetCount() > 0 ) {
 				G_ReplaySave( "replay_79.dat" );
 				G_ReplayStart();
 				G_ReplayLoad( "replay_79.dat" );
 				G_ReplayPlayStart();
-				int walked = 0;
-				struct replayEvent ev;
 				while ( G_ReplayGetNext( &ev ) ) {
 					walked++;
 				}
@@ -2512,16 +2517,17 @@ static void NW_GameOver( int event, const char *why ) {
 		}
 	} else if ( rt == 80 ) {
 		// ---- TEST 80: overflow validation ----
+		int recorded;
 		if ( nw_replayTestDone80 ) {
-			int recorded = G_ReplayGetCount();
+			recorded = G_ReplayGetCount();
 			G_Printf( "NeonWave: REPLAY overflow recorded=%d stored=%d\n",
 				recorded, recorded >= REPLAY_MAX_EVENTS ? REPLAY_MAX_EVENTS : recorded );
 		}
 	}
 
 	LogExit( why );
-}
-// ---- v0.11 boss special mechanics ----
+	}
+	// ---- v0.11 boss special mechanics ----
 #define NW_BOSS_SHIELD_MS	4000	// tank shield phase duration
 #define NW_BOSS_SHIELD_CD	12000	// tank shield cooldown
 #define NW_BOSS_RAGE_HP		0.30f	// swarm mother rage below 30% hp
@@ -3178,7 +3184,7 @@ void NeonWave_Frame( void ) {
 			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest80", rtBuf, sizeof(rtBuf) );
 			if ( atoi( rtBuf ) == 1 && nw_started ) {
 				G_ReplayStart();
-				for ( int i = 0; i < REPLAY_MAX_EVENTS + 5; i++ ) {
+				for ( i = 0; i < REPLAY_MAX_EVENTS + 5; i++ ) {
 					G_ReplayRecord( i % 5, (float)(i % 3), (float)(i % 2), (unsigned char)(i % 256) );
 				}
 				nw_replayTestDone80 = qtrue;

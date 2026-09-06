@@ -1138,8 +1138,22 @@ extern vmCvar_t g_debugMove;
 extern vmCvar_t g_debugAlloc;
 
 #ifdef NEONARENA_MOD
-// Forward declaration for replay recorder API
-struct replayEvent;
+// Replay recorder types (defined here so g_neonwave.c can access them)
+struct replayEvent {
+    unsigned int timestampMs;
+    unsigned char type;
+    float x, y;
+    unsigned char buttons;
+};
+
+struct replayHeader {
+    unsigned int magic;
+    unsigned short version;
+    unsigned short reserved;
+    unsigned int eventCount;
+    unsigned int durationMs;
+    char mapName[64];
+};
 
 void G_ReplayStart(void);
 void G_ReplayStop(void);
@@ -1154,6 +1168,10 @@ qboolean G_ReplayIsPlaying(void);
 qboolean G_ReplayGetNext(struct replayEvent *out);
 void G_ReplayReset(void);
 void G_ReplayCmd_f(void);
+
+// Replay buffer access (used by g_neonwave.c for test hooks)
+extern struct replayEvent replayEvents[32768];
+extern int replayCount;
 #endif
 extern vmCvar_t g_debugDamage;
 extern vmCvar_t g_weaponRespawn;
