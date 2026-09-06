@@ -3139,11 +3139,11 @@ void NeonWave_Frame( void ) {
 			}
 		}
 
-		// test hook: g_neonwave_replaytest77 — save header metadata (used by test 77)
+		// test hook: g_neonwave_replaytest 77 — save header metadata (used by test 77)
 		if ( !nw_over && !nw_replayTestDone77 && nw_wave == 1 ) {
 			char rtBuf[8];
-			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest77", rtBuf, sizeof(rtBuf) );
-			if ( atoi( rtBuf ) == 1 && nw_started ) {
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 77 && nw_started ) {
 				G_ReplayStart();
 				G_ReplayRecord( 0, 1.0f, 0.0f, 0 );  // MOVE
 				G_ReplayRecord( 2, 0.0f, 0.0f, 1 );  // FIRE
@@ -3151,11 +3151,11 @@ void NeonWave_Frame( void ) {
 			}
 		}
 
-		// test hook: g_neonwave_replaytest78 — pre-seed events, then reload (used by test 78)
+		// test hook: g_neonwave_replaytest 78 — pre-seed events, then reload (used by test 78)
 		if ( !nw_over && !nw_replayTestDone78 && nw_wave == 1 ) {
 			char rtBuf[8];
-			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest78", rtBuf, sizeof(rtBuf) );
-			if ( atoi( rtBuf ) == 1 && nw_started ) {
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 78 && nw_started ) {
 				G_ReplayStart();
 				G_ReplayRecord( 0, 0.0f, 0.0f, 0 );  // MOVE
 				G_ReplayRecord( 1, 0.0f, 0.0f, 0 );  // AIM
@@ -3164,11 +3164,11 @@ void NeonWave_Frame( void ) {
 			}
 		}
 
-		// test hook: g_neonwave_replaytest79 — record events for playback walk (used by test 79)
+		// test hook: g_neonwave_replaytest 79 — record events for playback walk (used by test 79)
 		if ( !nw_over && !nw_replayTestDone79 && nw_wave == 1 ) {
 			char rtBuf[8];
-			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest79", rtBuf, sizeof(rtBuf) );
-			if ( atoi( rtBuf ) == 1 && nw_started ) {
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 79 && nw_started ) {
 				G_ReplayStart();
 				G_ReplayRecord( 0, 0.0f, 0.0f, 0 );  // MOVE
 				G_ReplayRecord( 1, 1.0f, 0.0f, 0 );  // AIM
@@ -3178,11 +3178,11 @@ void NeonWave_Frame( void ) {
 			}
 		}
 
-		// test hook: g_neonwave_replaytest80 — overflow test: record past REPLAY_MAX_EVENTS (used by test 80)
+		// test hook: g_neonwave_replaytest 80 — overflow test: record past REPLAY_MAX_EVENTS (used by test 80)
 		if ( !nw_over && nw_wave == 1 && !nw_replayTestDone80 ) {
 			char rtBuf[8];
-			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest80", rtBuf, sizeof(rtBuf) );
-			if ( atoi( rtBuf ) == 1 && nw_started ) {
+			trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );
+			if ( atoi( rtBuf ) == 80 && nw_started ) {
 				G_ReplayStart();
 				for ( i = 0; i < REPLAY_MAX_EVENTS + 5; i++ ) {
 					G_ReplayRecord( i % 5, (float)(i % 3), (float)(i % 2), (unsigned char)(i % 256) );
