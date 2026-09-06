@@ -230,6 +230,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_cvar_start;
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ST] = 0;
+	G_Printf( "Ghost: %s joined the Ghost team\\n", ent->client->pers.netname );
 }
 
 void NW_GhostOnKill( gentity_t *attacker ) {
