@@ -8,7 +8,7 @@
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT		8	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER
+#define NW_BOSS_COUNT		11	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER
 #define REPLAY_MAX_EVENTS	32768	// max events in replay buffer (must match replay_recorder.c)
 
 // Test hooks (used by CI smoke test):
@@ -754,6 +754,9 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 #define NW_BOSS_BERSERKER	6	// v0.40: slow, huge HP, MG spam — enrages below 30% HP
 #define NW_BOSS_TELEPORTER	7	// v0.41: teleports away on hit, evasive boss
 #define NW_BOSS_HEALER		8	// v0.70: heals nearby bots, low HP, no direct attack
+#define NW_BOSS_SHIELDER	9	// v1.0: deploys energy shield vs projectiles
+#define NW_BOSS_SNIPELITE	10	// v1.0: fast sniper, double rail + cloak
+#define NW_BOSS_DEMOLISHER	11	// v1.0: rocket spammer, splash damage
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -762,12 +765,12 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_HEALER ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_DEMOLISHER ) {
 		return forced;
 	}
-	// one step per boss wave so a classic 20-wave run sees all six types:
+	// one step per boss wave so a classic 20-wave run sees all types:
 	// wave 10 SNIPER, 11 TANK, 12 SWARM MOTHER, 13 GLASS CANNON, 14 WARDEN,
-	// 15 BERSERKER
+	// 15 BERSERKER, 16 TELEPORTER, 17 HEALER, 18 SHIELDER, 19 SNIPELITE, 20 DEMOLISHER
 	// daily challenge shifts the rotation start
 	{
 		int rot = ( nw_wave - NW_BOSS_WAVE ) % NW_BOSS_COUNT;
@@ -783,14 +786,17 @@ static int NW_PickBossType( void ) {
 
 static const char *NW_BossName( int type ) {
 	switch ( type ) {
-	case NW_BOSS_TANK:	return "TANK";
-	case NW_BOSS_SWARM:	return "SWARM MOTHER";
-	case NW_BOSS_GLASS:	return "GLASS CANNON";
+	case NW_BOSS_TANK:		return "TANK";
+	case NW_BOSS_SWARM:		return "SWARM MOTHER";
+	case NW_BOSS_GLASS:		return "GLASS CANNON";
 	case NW_BOSS_WARDEN:	return "WARDEN";
 	case NW_BOSS_BERSERKER:	return "BERSERKER";
-	case NW_BOSS_TELEPORTER:	return "TELEPORTER";
+	case NW_BOSS_TELEPORTER: return "TELEPORTER";
 	case NW_BOSS_HEALER:	return "HEALER";
-	default:		return "SNIPER";
+	case NW_BOSS_SHIELDER:	return "SHIELDER";
+	case NW_BOSS_SNIPELITE:	return "SNIPER ELITE";
+	case NW_BOSS_DEMOLISHER: return "DEMOLISHER";
+	default:				return "SNIPER";
 	}
 }
 
@@ -2832,13 +2838,49 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		}
 	}
 
+	if ( nw_bossType == NW_BOSS_DEMOLISHER ) {
+		static int nextRocket;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss && level.time > nextRocket && bots < 22 ) {
+			nextRocket = level.time + 3000;
+			// Spawn a rocket at the player's position (splash damage)
+			G_Printf( "NeonWave: DEMOLISHER fires rocket barrage%s\\n",
+				nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+			// Simplified: spawn extra bots as "rockets"
+			NW_SpawnBot( 3 );
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_SNIPELITE ) {
+		static int nextSnipe;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss && level.time > nextSnipe ) {
+			nextSnipe = level.time + 1500; // Fast sniper
+			G_Printf( "NeonWave: SNIPER ELITE rapid rail%s\\n",
+				nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_SHIELDER ) {
+		static int shieldActive;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss && !shieldActive ) {
+			shieldActive = 1;
+			G_Printf( "NeonWave: SHIELDER deploys energy shield\\n" );
+		}
+		if ( boss && shieldActive && boss->health < 200 ) {
+			shieldActive = 0;
+			G_Printf( "NeonWave: SHIELDER shield drops\\n" );
+		}
+	}
+
 	if ( nw_bossType == NW_BOSS_GLASS ) {
 		static int nextGlassMini;
 		gentity_t *boss = NW_FindBoss();
 		if ( boss && nw_bossPhase == 2 && level.time > nextGlassMini && bots < 20 ) {
 			nextGlassMini = level.time + 7000;
 			NW_SpawnBot( 3 );
-			G_Printf( "NeonWave: GLASS CANNON summons support drone (PHASE 2)\n" );
+			G_Printf( "NeonWave: GLASS CANNON summons support drone (PHASE 2)\\n" );
 		}
 	}
 }

@@ -12,7 +12,7 @@
 #define NW_WAVE_BREAK           12000   // ms between waves (perk shop)
 #define NW_MAX_WAVE             20
 #define NW_BOSS_WAVE            10      // from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT           8       // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER
+#define NW_BOSS_COUNT           11      // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER
 
 // CS_NEONWAVE payload events
 #define NW_EV_RUNNING           0
