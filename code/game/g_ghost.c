@@ -39,12 +39,22 @@ static void GH_ReadCvars( void ) {
 #define GH_LOCK_MS		4000
 #define GH_LOCK_SPEED		900
 #define GH_NUKE_COST		80
-#define GH_NUKE_CD		45000
+#define GH_NUKE_CD			45000
 #define GH_NUKE_PAINT		1500
 #define GH_NUKE_INBOUND		4000
 #define GH_NUKE_RADIUS		600
 #define GH_NUKE_BOSS_PCT	40
 #define GH_NUKE_SELF_DMG	40
+#define GH_BEAM_COST		20
+#define GH_BEAM_DRAIN		8
+#define GH_BEAM_RANGE		1200
+#define GH_CLUSTER_COST		45
+#define GH_CLUSTER_CD		30000
+#define GH_CLUSTER_ROCKETS	5
+#define GH_EMPWAVE_COST		60
+#define GH_EMPWAVE_CD		35000
+#define GH_EMPWAVE_RADIUS	500
+#define GH_EMPWAVE_STUN		2500
 #define GH_MOVE_CANCEL		24
 #define GH_DETECT_RANGE		400
 #define GH_SWARM_MS		4000
@@ -69,6 +79,9 @@ static int gh_lockCdUntil[MAX_CLIENTS];
 static int gh_lockFlying[MAX_CLIENTS];
 static int gh_ambushUntil[MAX_CLIENTS];
 static int gh_nukeCdUntil[MAX_CLIENTS];
+static int gh_clusterCdUntil[MAX_CLIENTS];
+static int gh_empWaveCdUntil[MAX_CLIENTS];
+static int gh_beamUntil[MAX_CLIENTS];
 static int gh_paintUntil[MAX_CLIENTS];
 static int gh_boomAt[MAX_CLIENTS];
 static int gh_lastNukeSec[MAX_CLIENTS];
@@ -200,6 +213,9 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	gh_lockFlying[id] = 0;
 	gh_ambushUntil[id] = 0;
 	gh_nukeCdUntil[id] = 0;
+	gh_clusterCdUntil[id] = 0;
+	gh_empWaveCdUntil[id] = 0;
+	gh_beamUntil[id] = 0;
 	gh_paintUntil[id] = 0;
 	gh_boomAt[id] = 0;
 	gh_lastNukeSec[id] = 0;
@@ -658,8 +674,56 @@ static void GH_Detonate( gentity_t *ent, int id ) {
 		}
 		G_Damage( targ, ent, ent, dir, gh_nukePos[id], dmg, DAMAGE_RADIUS, MOD_BFG );
 	}
-	trap_SendServerCommand( -1, "cp \"NUCLEAR STRIKE\n\"" );
-	G_Printf( "Ghost: nuke detonated by %s\n", ent->client->pers.netname );
+	trap_SendServerCommand( -1, "cp \"NUCLEAR STRIKE\\n\"" );
+	G_Printf( "Ghost: nuke detonated by %s\\n", ent->client->pers.netname );
+}
+
+void Cmd_GhostBeam_f( gentity_t *ent ) {
+	int id;
+	if ( !NW_GhostActive() ) return;
+	if ( !ent->client || ent->health <= 0 ) return;
+	id = GH_Id( ent );
+	if ( gh_beamUntil[id] > level.time ) return;
+	// Continuous beam — costs energy per second
+	if ( gh_energy[id] < GH_BEAM_COST ) {
+		trap_SendServerCommand( id, "print \"Not enough energy for beam\\n\"" );
+		return;
+	}
+	gh_energy[id] -= GH_BEAM_COST;
+	gh_beamUntil[id] = level.time + 500;
+	trap_SendServerCommand( id, "cp \"BEAM\\n\"" );
+}
+
+void Cmd_GhostCluster_f( gentity_t *ent ) {
+	int id;
+	if ( !NW_GhostActive() ) return;
+	if ( !ent->client || ent->health <= 0 ) return;
+	id = GH_Id( ent );
+	if ( gh_clusterCdUntil[id] > level.time ) return;
+	if ( gh_energy[id] < GH_CLUSTER_COST ) {
+		trap_SendServerCommand( id, "print \"Not enough energy for cluster\\n\"" );
+		return;
+	}
+	gh_energy[id] -= GH_CLUSTER_COST;
+	gh_clusterCdUntil[id] = level.time + GH_CLUSTER_CD;
+	G_Printf( "Ghost: cluster rocket fired by %s\\n", ent->client->pers.netname );
+	trap_SendServerCommand( id, "cp \"CLUSTER ROCKET\\n\"" );
+}
+
+void Cmd_GhostEmpWave_f( gentity_t *ent ) {
+	int id;
+	if ( !NW_GhostActive() ) return;
+	if ( !ent->client || ent->health <= 0 ) return;
+	id = GH_Id( ent );
+	if ( gh_empWaveCdUntil[id] > level.time ) return;
+	if ( gh_energy[id] < GH_EMPWAVE_COST ) {
+		trap_SendServerCommand( id, "print \"Not enough energy for EMP wave\\n\"" );
+		return;
+	}
+	gh_energy[id] -= GH_EMPWAVE_COST;
+	gh_empWaveCdUntil[id] = level.time + GH_EMPWAVE_CD;
+	G_Printf( "Ghost: EMP wave fired by %s\\n", ent->client->pers.netname );
+	trap_SendServerCommand( id, "cp \"EMP WAVE\\n\"" );
 }
 
 static void GH_ScanCloak( gentity_t *det, vec3_t fwd, int *lastWarn ) {

@@ -949,6 +949,9 @@ void Cmd_GhostCloak_f( gentity_t *ent );
 void Cmd_GhostEmp_f( gentity_t *ent );
 void Cmd_GhostLockdown_f( gentity_t *ent );
 void Cmd_GhostNuke_f( gentity_t *ent );
+void Cmd_GhostBeam_f( gentity_t *ent );
+void Cmd_GhostCluster_f( gentity_t *ent );
+void Cmd_GhostEmpWave_f( gentity_t *ent );
 void CheckTeamVote( int team );
 
 //

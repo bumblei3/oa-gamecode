@@ -2416,6 +2416,9 @@ commands_t cmds[ ] =
 	{ "emp", CMD_LIVING, Cmd_GhostEmp_f },
 	{ "lockdown", CMD_LIVING, Cmd_GhostLockdown_f },
 	{ "nuke", CMD_LIVING, Cmd_GhostNuke_f },
+	{ "beam", CMD_LIVING, Cmd_GhostBeam_f },
+	{ "cluster", CMD_LIVING, Cmd_GhostCluster_f },
+	{ "empwave", CMD_LIVING, Cmd_GhostEmpWave_f },
 #endif
 	// normal commands
 	{ "team", 0, Cmd_Team_f },
