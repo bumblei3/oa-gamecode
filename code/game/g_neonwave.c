@@ -386,6 +386,12 @@ static void NW_MirrorRecordCvars( void );
 static void NW_LoadDailyRecords( void );
 static void NW_MirrorDailyRecordCvars( void );
 
+static int nw_bossEntityCache = -1;	// Cached boss entity index (-1 = invalid)
+
+static void NW_InvalidateBossCache( void ) {
+	nw_bossEntityCache = -1;
+}
+
 void NeonWave_Reset( void ) {
 	nw_wave = 0;
 	nw_aliveBots = 0;
@@ -396,6 +402,7 @@ void NeonWave_Reset( void ) {
 	nw_runStartTime = level.time;
 	nw_runBestCombo = 0;
 	nw_runKills = 0;
+	NW_InvalidateBossCache();
 	nw_multikillCount = 0;
 	nw_multikillTime = 0;
 	nw_untouchableWave = qtrue;
@@ -835,6 +842,7 @@ static void NW_SpawnBoss( void ) {
 		hc = hc * 3 / 2;
 	}
 	nw_bossType = type;
+	NW_InvalidateBossCache();
 	G_Printf( "NeonWave: boss spawned: %s (hc %i)\n", NW_BossName( type ), hc );
 	if ( type == NW_BOSS_BERSERKER ) {
 		char rfBuf[8];
@@ -1689,6 +1697,7 @@ void NeonWave_StartWave( int num ) {
 	nw_waveHadBots = qfalse;
 	nw_bossType = 0;
 	nw_bossPhase = 1;
+	NW_InvalidateBossCache();
 
 	// endless mode: past the classic max wave, keep scaling difficulty
 	// Cap at 15 bots to prevent performance issues in very late waves
@@ -2546,10 +2555,22 @@ static void NW_GameOver( int event, const char *why ) {
 static gentity_t *NW_FindBoss( void ) {
 	gentity_t *ent;
 	int i;
+	// Return cached result if valid
+	if ( nw_bossEntityCache >= 0 && nw_bossEntityCache < level.maxclients ) {
+		ent = &g_entities[nw_bossEntityCache];
+		if ( ent->inuse && ent->client && ( ent->r.svFlags & SVF_BOT )
+				&& ent->health > 0 && ent->client->pers.neonwaveBoss ) {
+			return ent;
+		}
+		// Cache invalidated - boss died or changed
+		nw_bossEntityCache = -1;
+	}
+	// Scan for boss and cache result
 	for ( i = 0; i < level.maxclients; i++ ) {
 		ent = &g_entities[i];
 		if ( ent->inuse && ent->client && ( ent->r.svFlags & SVF_BOT )
 				&& ent->health > 0 && ent->client->pers.neonwaveBoss ) {
+			nw_bossEntityCache = i;
 			return ent;
 		}
 	}
