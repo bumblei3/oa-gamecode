@@ -55,6 +55,9 @@ static void GH_ReadCvars( void ) {
 #define GH_EMPWAVE_CD		35000
 #define GH_EMPWAVE_RADIUS	500
 #define GH_EMPWAVE_STUN		2500
+#define GH_MULTISCAN_COST	30
+#define GH_MULTISCAN_CD		3000
+#define GH_MULTISCAN_RADIUS	500
 #define GH_MOVE_CANCEL		24
 #define GH_DETECT_RANGE		400
 #define GH_SWARM_MS		4000
@@ -82,6 +85,7 @@ static int gh_nukeCdUntil[MAX_CLIENTS];
 static int gh_clusterCdUntil[MAX_CLIENTS];
 static int gh_empWaveCdUntil[MAX_CLIENTS];
 static int gh_beamUntil[MAX_CLIENTS];
+static int gh_multiCdUntil[MAX_CLIENTS];
 static int gh_paintUntil[MAX_CLIENTS];
 static int gh_boomAt[MAX_CLIENTS];
 static int gh_lastNukeSec[MAX_CLIENTS];
@@ -216,6 +220,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	gh_clusterCdUntil[id] = 0;
 	gh_empWaveCdUntil[id] = 0;
 	gh_beamUntil[id] = 0;
+	gh_multiCdUntil[id] = 0;
 	gh_paintUntil[id] = 0;
 	gh_boomAt[id] = 0;
 	gh_lastNukeSec[id] = 0;
@@ -692,6 +697,7 @@ void Cmd_GhostBeam_f( gentity_t *ent ) {
 	gh_energy[id] -= GH_BEAM_COST;
 	gh_beamUntil[id] = level.time + 500;
 	trap_SendServerCommand( id, "cp \"BEAM\\n\"" );
+	G_Printf( "Ghost: beam active for %s\\n", ent->client->pers.netname );
 }
 
 void Cmd_GhostCluster_f( gentity_t *ent ) {
@@ -724,6 +730,7 @@ void Cmd_GhostEmpWave_f( gentity_t *ent ) {
 	gh_empWaveCdUntil[id] = level.time + GH_EMPWAVE_CD;
 	G_Printf( "Ghost: EMP wave fired by %s\\n", ent->client->pers.netname );
 	trap_SendServerCommand( id, "cp \"EMP WAVE\\n\"" );
+	G_Printf( "Ghost: EMP wave fired by %s\\n", ent->client->pers.netname );
 }
 
 static void GH_ScanCloak( gentity_t *det, vec3_t fwd, int *lastWarn ) {
@@ -976,6 +983,46 @@ void NW_GhostFrame( void ) {
 		}
 		GH_SyncHud( ent );
 	}
+}
+
+void Cmd_GhostMultiScan_f( gentity_t *ent ) {
+	int id;
+	int i;
+	vec3_t pos;
+	if ( !NW_GhostActive() || !ent || !ent->client ) {
+		return;
+	}
+	id = GH_Id( ent );
+	if ( id < 0 || id >= MAX_CLIENTS ) {
+		return;
+	}
+	if ( gh_multiCdUntil[id] > level.time ) {
+		trap_SendServerCommand( id, va( "cp \"MULTI-SCAN READY IN %i\\n\"", ( gh_multiCdUntil[id] - level.time + 999 ) / 1000 ) );
+		return;
+	}
+	if ( gh_energy[id] < GH_MULTISCAN_COST ) {
+		trap_SendServerCommand( id, "cp \"NOT ENOUGH ENERGY\\n\"" );
+		return;
+	}
+	gh_energy[id] -= GH_MULTISCAN_COST;
+	gh_multiCdUntil[id] = level.time + GH_MULTISCAN_CD;
+	VectorCopy( ent->r.currentOrigin, pos );
+	// Reveal all cloaked units in radius
+	for ( i = 0; i < level.num_entities; i++ ) {
+		gentity_t *target = &g_entities[i];
+		if ( !target->inuse || !target->client ) continue;
+		if ( target == ent ) continue;
+		if ( Distance( pos, target->r.currentOrigin ) > GH_MULTISCAN_RADIUS ) continue;
+		// Reveal cloaked units
+		if ( target->client->ps.powerups[PW_INVIS] > level.time ) {
+			target->client->ps.powerups[PW_INVIS] = 0;
+			trap_SendServerCommand( -1, va( "cp \"%s DETECTED\\n\"", target->client->pers.netname ) );
+		}
+	}
+	// Grant damage bonus for 2 seconds
+	ent->client->pers.ghostMultiScan = level.time + 2000;
+	trap_SendServerCommand( id, "cp \"MULTI-SCAN ACTIVE\\n\"" );
+	G_AddEvent( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/weapons/railgun/railgf1a.wav" ) );
 }
 
 #endif

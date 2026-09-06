@@ -336,6 +336,10 @@ typedef struct {
 	int         nwLegacyAvailable; // 1 if legacy echo can be activated this wave
 	int         nwLegacyBoost;     // 1 if legacy boost is active
 	int         nwLegacyBoostEnd;  // time when boost expires
+	// Ghost Kit (v1.1)
+	int         ghostEnergy;       // current ghost energy
+	int         ghostSnipe;        // snipe zoom end time
+	int         ghostMultiScan;    // multi-scan damage bonus end time
 #endif
 } clientPersistant_t;
 
@@ -952,6 +956,7 @@ void Cmd_GhostNuke_f( gentity_t *ent );
 void Cmd_GhostBeam_f( gentity_t *ent );
 void Cmd_GhostCluster_f( gentity_t *ent );
 void Cmd_GhostEmpWave_f( gentity_t *ent );
+void Cmd_GhostMultiScan_f( gentity_t *ent );
 void CheckTeamVote( int team );
 
 //

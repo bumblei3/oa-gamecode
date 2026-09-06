@@ -556,6 +556,17 @@ void weapon_railgun_fire (gentity_t *ent)
 	int			ambush;
 #endif
 
+#ifdef NEONARENA_MOD
+	// Ghost snipe bonus: +50% damage when zoomed (using server-side zoom state)
+	if ( ent->client && ent->client->pers.ghostSnipe > level.time ) {
+		damage = damage * 3 / 2;
+	}
+	// Multi-Scan bonus: +60% damage for 2s after scan
+	if ( ent->client && ent->client->pers.ghostMultiScan > level.time ) {
+		damage = damage * 16 / 10;
+	}
+#endif
+
 	damage = 100 * s_quadFactor;
 	if(g_instantgib.integer)
 		damage = 800;
