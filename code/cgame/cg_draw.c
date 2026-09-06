@@ -1777,6 +1777,7 @@ static float CG_DrawNeonWave(float y) {
 	}
 
 	// Ghost kit HUD (g_neonwave_ghost 1) — playerstate, not server cvars
+	// Shows energy bar + keybinds with cooldown timers
 	{
 		char gbuf[8], pip[16];
 		int ghostOn, energy, cds, st, empS, lockS, nukeS, cloakS, stCode, nukeSec;
@@ -1810,31 +1811,31 @@ static float CG_DrawNeonWave(float y) {
 			CG_DrawSmallStringColor( 16, 424, s, gcol );
 			px = 16;
 			if ( cloakS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "J%i", cloakS );
-				CG_DrawSmallStringColor( px, 440, pip, gcol );
+				Com_sprintf( pip, sizeof(pip), "J CLOAK %i", cloakS );
+				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "J", ready );
+				CG_DrawSmallStringColor( px, 440, "J CLOAK", ready );
 			}
-			px += 40;
+			px += 80;
 			if ( empS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "H%i", empS );
+				Com_sprintf( pip, sizeof(pip), "H EMP %i", empS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "H", ready );
+				CG_DrawSmallStringColor( px, 440, "H EMP", ready );
 			}
-			px += 40;
+			px += 80;
 			if ( lockS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "K%i", lockS );
+				Com_sprintf( pip, sizeof(pip), "K LOCK %i", lockS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "K", ready );
+				CG_DrawSmallStringColor( px, 440, "K LOCK", ready );
 			}
-			px += 40;
+			px += 80;
 			if ( nukeS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "N%i", nukeS );
+				Com_sprintf( pip, sizeof(pip), "N NUKE %i", nukeS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "N", ready );
+				CG_DrawSmallStringColor( px, 440, "N NUKE", ready );
 			}
 			s[0] = 0;
 			if ( stCode == 1 ) {
