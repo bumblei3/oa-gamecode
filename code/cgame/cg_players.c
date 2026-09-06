@@ -2602,6 +2602,15 @@ void CG_AddRefEntityWithPowerups(refEntity_t *ent, entityState_t *state, int tea
 		trap_R_AddRefEntityToScene(ent);
 
 #ifdef NEONARENA_MOD
+		// G10: uncloaked Ghost — cyan shell on humans (not drones)
+		if (CG_GhostKit() && !isMissile && !(state->eFlags & EF_DEAD)
+			&& state->number >= 0 && state->number < MAX_CLIENTS
+			&& cgs.clientinfo[state->number].botSkill <= 0
+			&& cgs.media.ghostShellShader) {
+			ent->customShader = cgs.media.ghostShellShader;
+			trap_R_AddRefEntityToScene(ent);
+			ent->customShader = 0;
+		}
 		if (cgs.gametype == GT_NEONWAVE && !isMissile && !(state->eFlags & EF_DEAD)
 			&& state->number >= 0 && state->number < MAX_CLIENTS) {
 			clientInfo_t *nci = &cgs.clientinfo[state->number];

@@ -1632,7 +1632,7 @@ static float	CG_MachinegunSpinAngle( centity_t *cent )
 CG_AddWeaponWithPowerups
 ========================
 */
-static void CG_AddWeaponWithPowerups( refEntity_t *gun, int powerups )
+static void CG_AddWeaponWithPowerups( refEntity_t *gun, int powerups, int clientNum )
 {
 	// add powerup effects
 	if ( powerups & ( 1 << PW_INVIS ) ) {
@@ -1677,6 +1677,15 @@ static void CG_AddWeaponWithPowerups( refEntity_t *gun, int powerups )
 		}
 		if (cg_alternateShell.integer > 1)	// NOW add the entity for the glow
 		trap_R_AddRefEntityToScene( gun );
+#ifdef NEONARENA_MOD
+		if ( CG_GhostKit() && cgs.media.ghostShellShader
+				&& clientNum >= 0 && clientNum < MAX_CLIENTS
+				&& cgs.clientinfo[clientNum].botSkill <= 0 ) {
+			gun->customShader = cgs.media.ghostShellShader;
+			trap_R_AddRefEntityToScene( gun );
+			gun->customShader = 0;
+		}
+#endif
 	}
 }
 
@@ -1853,7 +1862,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	MatrixMultiply(lerped.axis, ((refEntity_t *)parent)->axis, gun.axis);
 	gun.backlerp = parent->backlerp;
 
-	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups );
+	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups, cent->currentState.number );
 
 	// add the spinning barrel
 	if ( weapon->barrelModel ) {
@@ -1870,7 +1879,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 		CG_PositionRotatedEntityOnTag( &barrel, &gun, weapon->weaponModel, "tag_barrel" );
 
-		CG_AddWeaponWithPowerups( &barrel, cent->currentState.powerups );
+		CG_AddWeaponWithPowerups( &barrel, cent->currentState.powerups, cent->currentState.number );
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG

@@ -880,6 +880,7 @@ typedef struct {
 	qhandle_t	neonLgSparkShader;
 	qhandle_t	ghostScopeShader;
 	qhandle_t	ghostCloakShader;
+	qhandle_t	ghostShellShader;
 #endif
 	// LEILEI shaders
 

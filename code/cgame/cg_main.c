@@ -1275,6 +1275,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.neonLgSparkShader = trap_R_RegisterShader("lgSparkBurst");
 	cgs.media.ghostScopeShader = trap_R_RegisterShader("gfx/2d/ghost_scope");
 	cgs.media.ghostCloakShader = trap_R_RegisterShader("neonarena/ghostCloak");
+	cgs.media.ghostShellShader = trap_R_RegisterShader("neonarena/ghostShell");
 #endif // NEONARENA_MOD
 
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
@@ -2554,6 +2555,9 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 #ifdef NEONARENA_MOD
 	trap_SendConsoleCommand("exec neon-look.cfg\n");
 	trap_SendConsoleCommand("exec neon-gfx.cfg\n");
+	if (CG_GhostKit()) {
+		trap_SendConsoleCommand("exec ghost-binds.cfg\n");
+	}
 #endif
 }
 
