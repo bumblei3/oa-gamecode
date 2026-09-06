@@ -530,6 +530,11 @@ void QDECL G_Error( const char *fmt, ... )
 	va_list		argptr;
 	char		text[1024];
 
+	// M8: Auto-save replay on crash for bug reports
+#ifdef NEONARENA_MOD
+	G_ReplayAutoSaveOnCrash();
+#endif
+
 	va_start (argptr, fmt);
 	Q_vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);

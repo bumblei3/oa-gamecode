@@ -13,6 +13,12 @@
 
 struct replayEvent replayEvents[REPLAY_MAX_EVENTS];
 int replayCount = 0;
+
+struct replayEvent *G_ReplayGetBuffer( void ) {
+    return replayEvents;
+}
+
+
 static qboolean replayRecording = qfalse;
 static qboolean replayPlaying = qfalse;
 static int replayPlaybackIdx = 0;
@@ -117,6 +123,12 @@ void G_ReplayLoad(const char *filename) {
     G_Printf("NeonWave: Replay loaded from %s (%d events)\n", filename, replayCount);
 }
 
+void G_ReplayAutoSaveOnCrash(void) {
+    if (replayRecording && replayCount > 0) {
+        G_ReplaySave("crash_replay.dat");
+    }
+}
+
 void G_ReplayPlayStart(void) {
     if (replayCount == 0) return;
     replayPlaying = qtrue;
@@ -153,7 +165,7 @@ void G_ReplayReset(void) {
 void G_ReplayCmd_f(void) {
     char cmd[32];
     if (trap_Argc() < 2) {
-        G_Printf("Usage: nw_replay <start|stop|save|load|play|status>\n");
+        G_Printf("Usage: nw_replay <start|stop|save|load|play|status|bugreport>\n");
         return;
     }
     trap_Argv(1, cmd, sizeof(cmd));
@@ -180,6 +192,14 @@ void G_ReplayCmd_f(void) {
         G_Printf("Replay: %s, %d events\n",
                  replayRecording ? "recording" : (replayPlaying ? "playing" : "idle"),
                  replayCount);
+    } else if (Q_stricmp(cmd, "bugreport") == 0) {
+        char filename[64] = "bugreport_replay.dat";
+        if (trap_Argc() >= 3) {
+            trap_Argv(2, filename, sizeof(filename));
+        }
+        G_ReplaySave(filename);
+        G_Printf("NeonWave: Bug report replay saved to %s\n", filename);
+        G_Printf("NeonWave: Attach this file to your bug report at github.com/bumblei3/neon-arena/issues\n");
     } else {
         G_Printf("Unknown replay command: %s\n", cmd);
     }

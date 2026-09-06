@@ -1160,8 +1160,10 @@ void G_ReplayStop(void);
 void G_ReplayRecord(int type, float x, float y, unsigned char buttons);
 qboolean G_ReplayIsRecording(void);
 int G_ReplayGetCount(void);
+struct replayEvent *G_ReplayGetBuffer(void);
 void G_ReplaySave(const char *filename);
 void G_ReplayLoad(const char *filename);
+void G_ReplayAutoSaveOnCrash(void);
 void G_ReplayPlayStart(void);
 void G_ReplayPlayStop(void);
 qboolean G_ReplayIsPlaying(void);
@@ -1172,6 +1174,8 @@ void G_ReplayCmd_f(void);
 // Replay buffer access (used by g_neonwave.c for test hooks)
 extern struct replayEvent replayEvents[32768];
 extern int replayCount;
+
+#define REPLAY_MAX_EVENTS 32768
 #endif
 extern vmCvar_t g_debugDamage;
 extern vmCvar_t g_weaponRespawn;

@@ -2467,14 +2467,18 @@ static void NW_GameOver( int event, const char *why ) {
 		}
 	} else if ( rt == 77 ) {
 		// ---- TEST 77: save header ----
-		char mapBuf[64];
+		struct replayEvent *rb;
+		rb = G_ReplayGetBuffer();
 		if ( nw_replayTestDone77 ) {
 			G_ReplaySave( "replay_77.dat" );
-			trap_Cvar_VariableStringBuffer( "mapname", mapBuf, sizeof(mapBuf) );
-			G_Printf( "NeonWave: REPLAY SAVE magic=NRPY version=1 events=%d durationMs=%d map=%s\n",
-				G_ReplayGetCount(),
-				G_ReplayGetCount() > 0 ? replayEvents[G_ReplayGetCount()-1].timestampMs : 0,
-				mapBuf );
+			{
+				char mapBuf[64];
+				trap_Cvar_VariableStringBuffer( "mapname", mapBuf, sizeof(mapBuf) );
+				G_Printf( "NeonWave: REPLAY SAVE magic=NRPY version=1 events=%d durationMs=%d map=%s\n",
+					G_ReplayGetCount(),
+					G_ReplayGetCount() > 0 ? rb[G_ReplayGetCount()-1].timestampMs : 0,
+					mapBuf );
+			}
 		}
 	} else if ( rt == 78 ) {
 		// ---- TEST 78: load and verify events ----
