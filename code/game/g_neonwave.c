@@ -8,7 +8,7 @@
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT		12	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER CHRONOMANCER
+#define NW_BOSS_COUNT		13	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER CHRONOMANCER VOIDWALKER
 #define REPLAY_MAX_EVENTS	32768	// max events in replay buffer (must match replay_recorder.c)
 
 // Test hooks (used by CI smoke test):
@@ -854,6 +854,7 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 #define NW_BOSS_SNIPELITE	10	// v1.0: fast sniper, double rail + cloak
 #define NW_BOSS_DEMOLISHER	11	// v1.0: rocket spammer, splash damage
 #define NW_BOSS_CHRONOMANCER	12	// v1.0: time manipulation, teleport, slow-mo
+#define NW_BOSS_VOIDWALKER	13	// v1.0: phase-shifting, invulnerability, enrage
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -862,7 +863,7 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_CHRONOMANCER ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_VOIDWALKER ) {
 		return forced;
 	}
 	// one step per boss wave so a classic 20-wave run sees all types:
@@ -894,6 +895,7 @@ static const char *NW_BossName( int type ) {
 	case NW_BOSS_SNIPELITE:	return "SNIPER ELITE";
 	case NW_BOSS_DEMOLISHER: return "DEMOLISHER";
 	case NW_BOSS_CHRONOMANCER: return "CHRONOMANCER";
+	case NW_BOSS_VOIDWALKER: return "VOID WALKER";
 	default:				return "SNIPER";
 	}
 }
@@ -922,6 +924,9 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_CHRONOMANCER ) {
 		hc = 450; // 4.5x — chronomancer: time manipulation, moderate-high HP
+	}
+	if ( type == NW_BOSS_VOIDWALKER ) {
+		hc = 550; // 5.5x — void walker: phase-shifting tank
 	}
 	// wave scaling: bosses get +20% HP per wave past boss wave 10
 	if ( nw_wave > NW_BOSS_WAVE ) {
@@ -2785,6 +2790,9 @@ static void NW_BossEnterPhase2( void ) {
 	case NW_BOSS_CHRONOMANCER:
 		G_Printf( "NeonWave: CHRONOMANCER ENTERS PHASE 2\n" );
 		break;
+	case NW_BOSS_VOIDWALKER:
+		G_Printf( "NeonWave: VOID WALKER ENTERS PHASE 2\n" );
+		break;
 	default:
 		G_Printf( "NeonWave: BOSS ENTERS PHASE 2\n" );
 		break;
@@ -3103,6 +3111,47 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 				nextSlow = level.time + ( nw_bossPhase == 2 ? 8000 : 12000 );
 				G_Printf( "NeonWave: CHRONOMANCER slows nearby bots%s\n",
 					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+			}
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_VOIDWALKER ) {
+		static int nextPhase;
+		static int phaseActive;
+		static int nextVoidAura;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss ) {
+			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+			int phaseCd = ( nw_bossPhase == 2 ? 5000 : 8000 );
+			// Phase-shifting: invulnerability for 2s
+			if ( level.time > nextPhase ) {
+				nextPhase = level.time + phaseCd;
+				phaseActive = 1;
+				boss->client->pers.neonwaveBossShield = 1;
+				boss->client->pers.neonwaveBossShieldEnd = level.time + 2000;
+				G_Printf( "NeonWave: VOID WALKER phaseshift%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+				trap_SendServerCommand( -1, "cp \"VOID WALKER phaseshift!\n\"" );
+			}
+			if ( phaseActive && level.time > boss->client->pers.neonwaveBossShieldEnd ) {
+				phaseActive = 0;
+				boss->client->pers.neonwaveBossShield = 0;
+				G_Printf( "NeonWave: VOID WALKER materializes%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+			}
+			// Void aura: damage nearby bots
+			if ( level.time > nextVoidAura ) {
+				nextVoidAura = level.time + 10000;
+				G_Printf( "NeonWave: VOID WALKER void aura pulses%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+			}
+			// Enrage at low HP
+			if ( maxhp > 0 && boss->health < maxhp * 0.3f ) {
+				if ( nw_bossPhase == 1 ) {
+					nw_bossPhase = 2;
+					G_Printf( "NeonWave: VOID WALKER ENRAGES\n" );
+					trap_SendServerCommand( -1, "cp \"VOID WALKER ENRAGES!\n\"" );
+				}
 			}
 		}
 	}
