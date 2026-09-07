@@ -729,14 +729,20 @@ static void NW_ApplyDroneScaling( void ) {
 			bot->client->ps.stats[STAT_HEALTH] = newMax;
 		}
 		if ( dmgScale != 1.0f ) {
-			// Store damage scale in pers.neonwaveDmg for combat code to use
-			bot->client->pers.neonwaveDmg = (int)(bot->client->pers.neonwaveDmg * dmgScale);
+			// Convert float scale to neonwaveDmg level (0-7)
+			// 1.0 = 0, 1.1 = 1, 1.2 = 2, etc.
+			int dmgLevel = (int)((dmgScale - 1.0f) * 10);
+			if ( dmgLevel < 0 ) dmgLevel = 0;
+			if ( dmgLevel > 7 ) dmgLevel = 7;
+			bot->client->pers.neonwaveDmg = dmgLevel;
 		}
 		if ( spdScale != 1.0f ) {
-			int newSpeed = (int)(320 * spdScale);
-			if ( newSpeed < 100 ) newSpeed = 100;
-			if ( newSpeed > 600 ) newSpeed = 600;
-			bot->client->pers.speed = newSpeed;
+			// Convert float scale to neonwaveSpeed level (0-7)
+			// 1.0 = 0, 1.1 = 1, 1.2 = 2, etc.
+			int spdLevel = (int)((spdScale - 1.0f) * 10);
+			if ( spdLevel < 0 ) spdLevel = 0;
+			if ( spdLevel > 7 ) spdLevel = 7;
+			bot->client->pers.neonwaveSpeed = spdLevel;
 		}
 	}
 }
