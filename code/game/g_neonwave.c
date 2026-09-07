@@ -698,6 +698,49 @@ static void NW_SpawnBot( int skill ) {
 		va("addbot sarge %i \"Drone W%d-%d\"\n", skill, nw_wave, ++nw_botCounter) );
 }
 
+// v0.80: Apply arena drone scaling (hp, damage, speed) to all spawned bots
+static void NW_ApplyDroneScaling( void ) {
+	char buf[8];
+	float hpScale = 1.0f, dmgScale = 1.0f, spdScale = 1.0f;
+	int k;
+
+	trap_Cvar_VariableStringBuffer( "g_neonwave_drone_hp_scale", buf, sizeof(buf) );
+	hpScale = atof( buf );
+	trap_Cvar_VariableStringBuffer( "g_neonwave_drone_damage_scale", buf, sizeof(buf) );
+	dmgScale = atof( buf );
+	trap_Cvar_VariableStringBuffer( "g_neonwave_drone_speed_scale", buf, sizeof(buf) );
+	spdScale = atof( buf );
+
+	// Only apply if any scale != 1.0
+	if ( hpScale == 1.0f && dmgScale == 1.0f && spdScale == 1.0f ) return;
+
+	for ( k = 0; k < level.maxclients; k++ ) {
+		gentity_t *bot = &g_entities[k];
+		if ( !bot->inuse || !bot->client ) continue;
+		if ( !( bot->r.svFlags & SVF_BOT ) ) continue;
+
+		if ( hpScale != 1.0f ) {
+			int newMax = (int)(100 * hpScale);
+			if ( newMax < 10 ) newMax = 10;
+			if ( newMax > 500 ) newMax = 500;
+			bot->client->pers.maxHealth = newMax;
+			bot->client->ps.stats[STAT_MAX_HEALTH] = newMax;
+			bot->health = newMax;
+			bot->client->ps.stats[STAT_HEALTH] = newMax;
+		}
+		if ( dmgScale != 1.0f ) {
+			// Store damage scale in pers.neonwaveDmg for combat code to use
+			bot->client->pers.neonwaveDmg = (int)(bot->client->pers.neonwaveDmg * dmgScale);
+		}
+		if ( spdScale != 1.0f ) {
+			int newSpeed = (int)(320 * spdScale);
+			if ( newSpeed < 100 ) newSpeed = 100;
+			if ( newSpeed > 600 ) newSpeed = 600;
+			bot->client->pers.speed = newSpeed;
+		}
+	}
+}
+
 // Batch-spawn multiple bots in a single console command for performance
 // Format: "addbot sarge SKILL \"NAME\"; addbot sarge SKILL \"NAME\"; ..."
 static void NW_SpawnBotsBatch( int skill, int count ) {
@@ -2070,6 +2113,8 @@ void NeonWave_StartWave( int num ) {
 			NW_SpawnBot( skill );
 		}
 	}
+	// v0.80: Apply arena drone scaling after spawn
+	NW_ApplyDroneScaling();
 	if ( NW_GhostActive() ) {
 		G_Printf( "NeonWave: GHOST kit active (wave %i)\n", num );
 	}
