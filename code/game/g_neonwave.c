@@ -1727,9 +1727,28 @@ void NeonWave_StartWave( int num ) {
 		countScale = atof( scaleBuf );
 		if ( countScale < 0.1f ) countScale = 0.1f;
 		if ( countScale > 3.0f ) countScale = 3.0f;
-		botCount = (int)(botCount * countScale + 0.5f);
-		if ( botCount < 1 ) botCount = 1;
-		if ( botCount > 20 ) botCount = 20;
+		if ( countScale != 1.0f ) {
+			int oldCount = botCount;
+			botCount = (int)(botCount * countScale + 0.5f);
+			if ( botCount < 1 ) botCount = 1;
+			if ( botCount > 20 ) botCount = 20;
+			G_Printf( "NeonWave: arena drone count scale %.2f: %d -> %d\n", countScale, oldCount, botCount );
+		}
+	}
+
+	// v0.80: arena scaling summary (logged once per wave for test assertions)
+	{
+		char buf[8];
+		float hpScale = 1.0f, dmgScale = 1.0f, spdScale = 1.0f;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_drone_hp_scale", buf, sizeof(buf) );
+		hpScale = atof( buf );
+		trap_Cvar_VariableStringBuffer( "g_neonwave_drone_damage_scale", buf, sizeof(buf) );
+		dmgScale = atof( buf );
+		trap_Cvar_VariableStringBuffer( "g_neonwave_drone_speed_scale", buf, sizeof(buf) );
+		spdScale = atof( buf );
+		if ( hpScale != 1.0f || dmgScale != 1.0f || spdScale != 1.0f ) {
+			G_Printf( "NeonWave: arena drone scaling hp=%.2f dmg=%.2f spd=%.2f\n", hpScale, dmgScale, spdScale );
+		}
 	}
 	// coop scaling: more humans = more drones + optional difficulty notch
 	{
