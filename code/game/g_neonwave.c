@@ -1718,6 +1718,19 @@ void NeonWave_StartWave( int num ) {
 		botCount += 2;
 		if ( skill < 5 ) skill += 1;
 	}
+
+	// v0.80: arena drone count scaling
+	{
+		char scaleBuf[8];
+		float countScale = 1.0f;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_drone_count_scale", scaleBuf, sizeof(scaleBuf) );
+		countScale = atof( scaleBuf );
+		if ( countScale < 0.1f ) countScale = 0.1f;
+		if ( countScale > 3.0f ) countScale = 3.0f;
+		botCount = (int)(botCount * countScale + 0.5f);
+		if ( botCount < 1 ) botCount = 1;
+		if ( botCount > 20 ) botCount = 20;
+	}
 	// coop scaling: more humans = more drones + optional difficulty notch
 	{
 		int humans = NW_CountHumans();
@@ -1780,7 +1793,22 @@ void NeonWave_StartWave( int num ) {
 			nw_ptsMul *= 3;
 		}
 		// v0.37 named-pair nudges (indices match nwSynergies[])
-		if ( nw_synergyIdx == 0 ) { // AERIAL ASSAULT: lower grav, x3 points
+		// v0.80: arena gravity scaling (applied after modifier/synergy calculations)
+	{
+		char gravBuf[8];
+		float gravScale = 1.0f;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_gravity_scale", gravBuf, sizeof(gravBuf) );
+		gravScale = atof( gravBuf );
+		if ( gravScale < 0.1f ) gravScale = 0.1f;
+		if ( gravScale > 2.0f ) gravScale = 2.0f;
+		if ( gravScale != 1.0f ) {
+			grav = (int)(grav * gravScale);
+			if ( grav < 100 ) grav = 100;
+			if ( grav > 1600 ) grav = 1600;
+		}
+	}
+
+	if ( nw_synergyIdx == 0 ) { // AERIAL ASSAULT: lower grav, x3 points
 			grav = 280;
 			nw_ptsMul = 3;
 			G_Printf( "NeonWave: SYNERGY EFFECT AERIAL ASSAULT: gravity 280, points x3\n" );

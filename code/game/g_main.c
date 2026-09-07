@@ -262,6 +262,13 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_legacy_echo", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_legacy_boost_dmg", "20", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_legacy_boost_dur", "5", CVAR_ARCHIVE, 0, qtrue },
+
+	// Arena scaling CVars (v0.80)
+	{ NULL, "g_neonwave_drone_hp_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_drone_damage_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_drone_count_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_drone_speed_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_gravity_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
