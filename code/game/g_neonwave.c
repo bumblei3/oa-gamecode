@@ -1631,6 +1631,19 @@ static void NW_PickModifier( int num ) {
 	if ( maxWave <= 0 ) {
 		maxWave = NW_MAX_WAVE;
 	}
+	// v0.80: seasonal rotation — weekly offset for modifier variety
+	{
+		qtime_t st;
+		char seasBuf[8];
+		int seasonalOffset = 0;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_seasonal", seasBuf, sizeof(seasBuf) );
+		if ( atoi( seasBuf ) == 1 ) {
+			trap_RealTime( &st );
+			seasonalOffset = ( st.tm_yday / 7 ) % NW_MOD_POOL_SIZE;
+			G_Printf( "NeonWave: SEASONAL rotation week %i (offset %i)\n", (st.tm_yday / 7), seasonalOffset );
+		}
+		nw_dailyOffset = ( nw_dailyOffset + seasonalOffset ) % NW_MOD_POOL_SIZE;
+	}
 	// waves 5 .. max-1 (boss waves included) so a classic run sees the full pool
 	if ( num < 5 || num >= maxWave ) {
 		return;

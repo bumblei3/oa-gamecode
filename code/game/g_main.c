@@ -273,6 +273,9 @@ static cvarTable_t gameCvarTable[] = {
 	// Bot type force CVar (v0.80) — for deterministic tests
 	{ NULL, "g_neonwave_forcebot", "0", CVAR_ARCHIVE, 0, qtrue },
 
+	// Seasonal rotation (v0.80) — weekly modifier pool offset for replayability
+	{ NULL, "g_neonwave_seasonal", "0", CVAR_ARCHIVE, 0, qtrue },
+
 	// Controller support (v0.80)
 	{ NULL, "in_joystick", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "joy_threshold", "0.15", CVAR_ARCHIVE, 0, qtrue },
