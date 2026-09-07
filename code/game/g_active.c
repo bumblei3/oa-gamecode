@@ -772,9 +772,10 @@ static void G_AimAssist( gentity_t *ent ) {
 	float assist;
 	int i;
 	char buf[8];
-	vec3_t dir, angles, bestDir;
+	vec3_t dir, angles, bestDir, diff;
 	float bestDist = 800.0f;
 	float fov = 15.0f;
+	float angleDiff, dist, delta;
 	gentity_t *target = NULL;
 	gclient_t *client = ent->client;
 
@@ -799,12 +800,11 @@ static void G_AimAssist( gentity_t *ent ) {
 		VectorNormalize( bestDir );
 
 		vectoangles( bestDir, bestDir );
-		float angleDiff = fabs( AngleDelta( angles[YAW], bestDir[YAW] ) );
+		angleDiff = fabs( AngleDelta( angles[YAW], bestDir[YAW] ) );
 
 		if ( angleDiff < fov ) {
-			vec3_t diff;
 			VectorSubtract( dir, bot->client->ps.origin, diff );
-			float dist = VectorLength( diff );
+			dist = VectorLength( diff );
 			if ( dist < bestDist ) {
 				bestDist = dist;
 				target = bot;
@@ -818,7 +818,7 @@ static void G_AimAssist( gentity_t *ent ) {
 		vectoangles( bestDir, bestDir );
 
 		for ( i = 0; i < 3; i++ ) {
-			float delta = AngleNormalize180( bestDir[i] - angles[i] );
+			delta = AngleNormalize180( bestDir[i] - angles[i] );
 			client->ps.viewangles[i] += delta * assist * 0.1f;
 		}
 	}
