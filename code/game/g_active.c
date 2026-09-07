@@ -782,6 +782,9 @@ static void G_AimAssist( gentity_t *ent ) {
 	trap_Cvar_VariableStringBuffer( "in_joystick", buf, sizeof(buf) );
 	if ( atoi( buf ) == 0 ) return;
 
+	// Publish controller state to cgame (CVAR_ROM)
+	trap_Cvar_Set( "ui_controller_active", "1" );
+
 	trap_Cvar_VariableStringBuffer( "joy_assist", buf, sizeof(buf) );
 	assist = atof( buf );
 	if ( assist <= 0.0f ) return;

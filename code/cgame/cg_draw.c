@@ -1809,6 +1809,14 @@ static float CG_DrawNeonWave(float y) {
 			}
 			Com_sprintf( s, sizeof(s), "GHOST %i", energy );
 			CG_DrawSmallStringColor( 16, 424, s, gcol );
+			// Controller indicator (v0.80)
+			{
+				char ctrlBuf[8];
+				trap_Cvar_VariableStringBuffer( "ui_controller_active", ctrlBuf, sizeof(ctrlBuf) );
+				if ( atoi( ctrlBuf ) == 1 ) {
+					CG_DrawSmallStringColor( 100, 424, "[JOY]", warn );
+				}
+			}
 			px = 16;
 			if ( cloakS > 0 ) {
 				Com_sprintf( pip, sizeof(pip), "J CLOAK %i", cloakS );

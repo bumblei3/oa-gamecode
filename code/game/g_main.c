@@ -282,6 +282,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "joy_sensitivity", "2.0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "joy_deadzone", "0.12", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "joy_assist", "0.3", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "ui_controller_active", "0", CVAR_ROM, 0, qtrue },
 #endif
 	{ &g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse  },
 
