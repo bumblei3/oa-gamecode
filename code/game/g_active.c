@@ -761,6 +761,71 @@ void SendPendingPredictableEvents( playerState_t *ps ) {
 
 /*
 ==============
+G_AimAssist
+
+v0.80: Leichte Magnetwirkung für Controller-Spieler.
+Findet den nächsten Bot in Crosshair-Nähe und kippt die View-Angles leicht dazu.
+Stärke wird über joy_assist CVar kontrolliert (0 = aus, 1 = max).
+==============
+*/
+static void G_AimAssist( gentity_t *ent ) {
+	float assist;
+	int i;
+	char buf[8];
+	vec3_t dir, angles, bestDir;
+	float bestDist = 800.0f;
+	float fov = 15.0f;
+	gentity_t *target = NULL;
+	gclient_t *client = ent->client;
+
+	trap_Cvar_VariableStringBuffer( "in_joystick", buf, sizeof(buf) );
+	if ( atoi( buf ) == 0 ) return;
+
+	trap_Cvar_VariableStringBuffer( "joy_assist", buf, sizeof(buf) );
+	assist = atof( buf );
+	if ( assist <= 0.0f ) return;
+
+	VectorCopy( client->ps.origin, dir );
+	VectorCopy( client->ps.viewangles, angles );
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t *bot = &g_entities[i];
+		if ( !bot->inuse || !bot->client ) continue;
+		if ( !( bot->r.svFlags & SVF_BOT ) ) continue;
+		if ( bot == ent ) continue;
+		if ( bot->health <= 0 ) continue;
+
+		VectorSubtract( bot->client->ps.origin, dir, bestDir );
+		VectorNormalize( bestDir );
+
+		vectoangles( bestDir, bestDir );
+		float angleDiff = fabs( AngleDelta( angles[YAW], bestDir[YAW] ) );
+
+		if ( angleDiff < fov ) {
+			vec3_t diff;
+			VectorSubtract( dir, bot->client->ps.origin, diff );
+			float dist = VectorLength( diff );
+			if ( dist < bestDist ) {
+				bestDist = dist;
+				target = bot;
+			}
+		}
+	}
+
+	if ( target ) {
+		VectorSubtract( target->client->ps.origin, dir, bestDir );
+		VectorNormalize( bestDir );
+		vectoangles( bestDir, bestDir );
+
+		for ( i = 0; i < 3; i++ ) {
+			float delta = AngleNormalize180( bestDir[i] - angles[i] );
+			client->ps.viewangles[i] += delta * assist * 0.1f;
+		}
+	}
+}
+
+/*
+==============
 ClientThink_real
 
 This will be called once for each client frame, which will
@@ -785,6 +850,11 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 	// mark the time, so the connection sprite can be removed
 	ucmd = &ent->client->pers.cmd;
+
+	// v0.80: Aim-Assist for controller players
+	if ( client->pers.connected == CON_CONNECTED && ent->client->sess.spectatorState == SPECTATOR_NOT ) {
+		G_AimAssist( ent );
+	}
 
 	// sanity check the command time to prevent speedup cheating
 	if ( ucmd->serverTime > level.time + 200 ) {
