@@ -779,9 +779,22 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 	// Console command limit is ~1024 chars, so batch in chunks
 	for ( i = 0; i < count; i++ ) {
 		char bot_cmd[128];
-		// v0.80: Random bot type assignment
+		// v0.80: Bot type — force via g_neonwave_forcebot for deterministic tests
 		int botType = NW_BOT_NONE;
 		const char* botSuffix = "";
+		{
+			char fbuf[8];
+			int fb;
+			trap_Cvar_VariableStringBuffer( "g_neonwave_forcebot", fbuf, sizeof(fbuf) );
+			fb = atoi( fbuf );
+			if ( fb >= 1 && fb <= 3 ) {
+				botType = fb;
+				if ( fb == 1 ) botSuffix = " HEALER";
+				else if ( fb == 2 ) botSuffix = " SHIELD";
+				else if ( fb == 3 ) botSuffix = " ELITE";
+			}
+		}
+		if ( botType == 0 ) {
 		if ( nw_wave >= 8 && ( rand() % 100 ) < NW_HEALER_RATE ) {
 			botType = NW_BOT_HEALER;
 			botSuffix = " HEALER";
@@ -792,6 +805,7 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 			botType = NW_BOT_ELITE;
 			botSuffix = " ELITE";
 		}
+		} // end if ( botType == 0 ) force-override
 		if ( nw_chaosActive ) {
 			int s = ( rand() % skill ) + 1;
 			++nw_botCounter;

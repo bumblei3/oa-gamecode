@@ -270,6 +270,9 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_drone_speed_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_gravity_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 
+	// Bot type force CVar (v0.80) — for deterministic tests
+	{ NULL, "g_neonwave_forcebot", "0", CVAR_ARCHIVE, 0, qtrue },
+
 	// Controller support (v0.80)
 	{ NULL, "in_joystick", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "joy_threshold", "0.15", CVAR_ARCHIVE, 0, qtrue },
