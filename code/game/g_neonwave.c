@@ -41,6 +41,17 @@
 #define NW_MOD_SHIELD		15	// v0.70: player gets temporary invulnerability at wave start
 #define NW_MOD_POOL_SIZE	16
 
+// v0.80: New bot types
+#define NW_BOT_NONE     0
+#define NW_BOT_HEALER   1   // Heals nearby bots (green glow)
+#define NW_BOT_SHIELDER 2   // Gives shields to nearby bots (blue glow)
+#define NW_BOT_ELITE    3   // Fast dash, high damage (red glow)
+
+// Bot type spawn chances (per 100 bots)
+#define NW_HEALER_RATE   15  // 15% chance per bot after wave 8
+#define NW_SHIELDER_RATE 10  // 10% chance per bot after wave 10
+#define NW_ELITE_RATE     5  // 5% chance per bot after wave 12
+
 // achievements (per-run badges, mirrored into run-stats JSON)
 #define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
 #define NW_ACH_SURVIVOR		1	// reached wave 15
@@ -764,21 +775,36 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 		return;
 	}
 
-	// Batch mode: build a single command string
+	// Batch mode: build a single console command string
 	// Console command limit is ~1024 chars, so batch in chunks
 	for ( i = 0; i < count; i++ ) {
 		char bot_cmd[128];
+		// v0.80: Random bot type assignment
+		int botType = NW_BOT_NONE;
+		const char* botSuffix = "";
+		if ( nw_wave >= 8 && ( rand() % 100 ) < NW_HEALER_RATE ) {
+			botType = NW_BOT_HEALER;
+			botSuffix = " HEALER";
+		} else if ( nw_wave >= 10 && ( rand() % 100 ) < NW_SHIELDER_RATE ) {
+			botType = NW_BOT_SHIELDER;
+			botSuffix = " SHIELD";
+		} else if ( nw_wave >= 12 && ( rand() % 100 ) < NW_ELITE_RATE ) {
+			botType = NW_BOT_ELITE;
+			botSuffix = " ELITE";
+		}
 		if ( nw_chaosActive ) {
 			int s = ( rand() % skill ) + 1;
 			++nw_botCounter;
-			G_Printf( "NeonWave: Drone W%d-%d CHAOS\n", nw_wave, nw_botCounter );
+			G_Printf( "NeonWave: Drone W%d-%d CHAOS%s\n", nw_wave, nw_botCounter, botSuffix );
 			Com_sprintf( bot_cmd, sizeof(bot_cmd),
-				"addbot sarge %i \"Drone W%d-%d CHAOS\"; ",
-				s, nw_wave, nw_botCounter );
+				"addbot sarge %i \"Drone W%d-%d CHAOS%s\"; ",
+				s, nw_wave, nw_botCounter, botSuffix );
 		} else {
+			++nw_botCounter;
+			G_Printf( "NeonWave: Drone W%d-%d%s\n", nw_wave, nw_botCounter, botSuffix );
 			Com_sprintf( bot_cmd, sizeof(bot_cmd),
-				"addbot sarge %i \"Drone W%d-%d\"; ",
-				skill, nw_wave, ++nw_botCounter );
+				"addbot sarge %i \"Drone W%d-%d%s\"; ",
+				skill, nw_wave, nw_botCounter, botSuffix );
 		}
 		if ( cmd_len + strlen(bot_cmd) >= sizeof(cmd) - 1 ) {
 			// Flush current batch
@@ -3171,6 +3197,70 @@ void NeonWave_Frame( void ) {
 		}
 	}
 	nw_aliveBots = bots;
+
+	// v0.80: Bot type logic (Healer, Shielder, Elite)
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) continue;
+		if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
+		if ( ent->health <= 0 ) continue;
+
+		// Parse bot type from name
+		const char* name = ent->client->pers.netname;
+		int botType = NW_BOT_NONE;
+		if ( strstr( name, "HEALER" ) ) botType = NW_BOT_HEALER;
+		else if ( strstr( name, "SHIELD" ) ) botType = NW_BOT_SHIELDER;
+		else if ( strstr( name, "ELITE" ) ) botType = NW_BOT_ELITE;
+
+		if ( botType == NW_BOT_HEALER ) {
+			// Healer: green glow, heals nearby bots every 3s
+			ent->s.constantLight = 0 | ( 255 << 8 ) | ( 0 << 16 ) | ( 120 << 24 );
+			if ( level.time % 3000 < 100 ) {
+				// Heal nearby bots within 200u
+				int j;
+				for ( j = 0; j < level.maxclients; j++ ) {
+					gentity_t* other = &g_entities[j];
+					if ( other == ent || !other->inuse || !other->client ) continue;
+					if ( !( other->r.svFlags & SVF_BOT ) ) continue;
+					if ( other->health <= 0 ) continue;
+					vec3_t diff;
+					VectorSubtract( ent->client->ps.origin, other->client->ps.origin, diff );
+					if ( VectorLength( diff ) < 200 ) {
+						other->health += 20;
+						if ( other->health > 100 ) other->health = 100;
+					}
+				}
+			}
+		} else if ( botType == NW_BOT_SHIELDER ) {
+			// Shielder: blue glow, gives shield to nearby bot every 5s
+			ent->s.constantLight = 0 | ( 0 << 8 ) | ( 255 << 16 ) | ( 120 << 24 );
+			if ( level.time % 5000 < 100 ) {
+				int j;
+				for ( j = 0; j < level.maxclients; j++ ) {
+					gentity_t* other = &g_entities[j];
+					if ( other == ent || !other->inuse || !other->client ) continue;
+					if ( !( other->r.svFlags & SVF_BOT ) ) continue;
+					if ( other->health <= 0 ) continue;
+					vec3_t diff;
+					VectorSubtract( ent->client->ps.origin, other->client->ps.origin, diff );
+					if ( VectorLength( diff ) < 200 ) {
+						other->client->ps.stats[STAT_ARMOR] += 50;
+						if ( other->client->ps.stats[STAT_ARMOR] > 150 ) other->client->ps.stats[STAT_ARMOR] = 150;
+					}
+				}
+			}
+		} else if ( botType == NW_BOT_ELITE ) {
+			// Elite: red glow, fast dash every 2s
+			ent->s.constantLight = 255 | ( 0 << 8 ) | ( 0 << 16 ) | ( 120 << 24 );
+			if ( level.time % 2000 < 100 ) {
+				// Dash forward
+				vec3_t forward;
+				AngleVectors( ent->client->ps.viewangles, forward, NULL, NULL );
+				VectorMA( ent->client->ps.origin, 100, forward, ent->client->ps.origin );
+			}
+		}
+	}
+
 	// MIMIC: magenta glow on drones (mirror effect, similar to WARDEN boss)
 	// Performance: Only apply when MIMIC is active
 	if ( NW_ModActive( NW_MOD_MIMIC ) ) {
