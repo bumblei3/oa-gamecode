@@ -8,7 +8,7 @@
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
 #define NW_MAX_WAVE			20
 #define NW_BOSS_WAVE		10	// from here on, each wave gets one boss drone
-#define NW_BOSS_COUNT		11	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER
+#define NW_BOSS_COUNT		12	// SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER CHRONOMANCER
 #define REPLAY_MAX_EVENTS	32768	// max events in replay buffer (must match replay_recorder.c)
 
 // Test hooks (used by CI smoke test):
@@ -853,6 +853,7 @@ static void NW_SpawnBotsBatch( int skill, int count ) {
 #define NW_BOSS_SHIELDER	9	// v1.0: deploys energy shield vs projectiles
 #define NW_BOSS_SNIPELITE	10	// v1.0: fast sniper, double rail + cloak
 #define NW_BOSS_DEMOLISHER	11	// v1.0: rocket spammer, splash damage
+#define NW_BOSS_CHRONOMANCER	12	// v1.0: time manipulation, teleport, slow-mo
 
 static int NW_PickBossType( void ) {
 	char btBuf[8];
@@ -861,7 +862,7 @@ static int NW_PickBossType( void ) {
 	// test hook: g_neonwave_bosstype N forces the type
 	trap_Cvar_VariableStringBuffer( "g_neonwave_bosstype", btBuf, sizeof(btBuf) );
 	forced = atoi( btBuf );
-	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_DEMOLISHER ) {
+	if ( forced >= NW_BOSS_SNIPER && forced <= NW_BOSS_CHRONOMANCER ) {
 		return forced;
 	}
 	// one step per boss wave so a classic 20-wave run sees all types:
@@ -892,6 +893,7 @@ static const char *NW_BossName( int type ) {
 	case NW_BOSS_SHIELDER:	return "SHIELDER";
 	case NW_BOSS_SNIPELITE:	return "SNIPER ELITE";
 	case NW_BOSS_DEMOLISHER: return "DEMOLISHER";
+	case NW_BOSS_CHRONOMANCER: return "CHRONOMANCER";
 	default:				return "SNIPER";
 	}
 }
@@ -917,6 +919,9 @@ static void NW_SpawnBoss( void ) {
 	}
 	if ( type == NW_BOSS_HEALER ) {
 		hc = 300; // 3x — healer: fragile, heals nearby bots
+	}
+	if ( type == NW_BOSS_CHRONOMANCER ) {
+		hc = 450; // 4.5x — chronomancer: time manipulation, moderate-high HP
 	}
 	// wave scaling: bosses get +20% HP per wave past boss wave 10
 	if ( nw_wave > NW_BOSS_WAVE ) {
@@ -2777,6 +2782,9 @@ static void NW_BossEnterPhase2( void ) {
 	case NW_BOSS_DEMOLISHER:
 		G_Printf( "NeonWave: DEMOLISHER ENTERS PHASE 2\n" );
 		break;
+	case NW_BOSS_CHRONOMANCER:
+		G_Printf( "NeonWave: CHRONOMANCER ENTERS PHASE 2\n" );
+		break;
 	default:
 		G_Printf( "NeonWave: BOSS ENTERS PHASE 2\n" );
 		break;
@@ -3064,7 +3072,38 @@ static void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 		if ( boss && nw_bossPhase == 2 && level.time > nextGlassMini && bots < 20 ) {
 			nextGlassMini = level.time + 7000;
 			NW_SpawnBot( 3 );
-			G_Printf( "NeonWave: GLASS CANNON summons support drone (PHASE 2)\\n" );
+			G_Printf( "NeonWave: GLASS CANNON summons support drone (PHASE 2)\n" );
+		}
+	}
+
+	if ( nw_bossType == NW_BOSS_CHRONOMANCER ) {
+		static int nextTeleport;
+		static int nextSlow;
+		gentity_t *boss = NW_FindBoss();
+		if ( boss ) {
+			int maxhp = boss->client->ps.stats[STAT_MAX_HEALTH];
+			int teleportCd = ( nw_bossPhase == 2 ? 4000 : 6000 );
+			if ( maxhp > 0 && boss->health < maxhp / 2 ) {
+				teleportCd = 3000;
+			}
+			if ( level.time > nextTeleport ) {
+				vec3_t origin, angles;
+				gentity_t *spawn;
+				nextTeleport = level.time + teleportCd;
+				G_Printf( "NeonWave: CHRONOMANCER warps time and teleports%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+				trap_SendServerCommand( -1, "cp \"CHRONOMANCER warps time!\n\"" );
+				spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
+				if ( spawn ) {
+					G_SetOrigin( boss, origin );
+					trap_LinkEntity( boss );
+				}
+			}
+			if ( level.time > nextSlow ) {
+				nextSlow = level.time + ( nw_bossPhase == 2 ? 8000 : 12000 );
+				G_Printf( "NeonWave: CHRONOMANCER slows nearby bots%s\n",
+					nw_bossPhase == 2 ? " (PHASE 2)" : "" );
+			}
 		}
 	}
 }
