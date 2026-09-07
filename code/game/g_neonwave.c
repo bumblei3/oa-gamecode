@@ -3200,60 +3200,60 @@ void NeonWave_Frame( void ) {
 
 	// v0.80: Bot type logic (Healer, Shielder, Elite)
 	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t* healerTarget;
+		gentity_t* shieldTarget;
+		char nameBuf[MAX_INFO_STRING];
 		ent = &g_entities[i];
 		if ( !ent->inuse || !ent->client ) continue;
 		if ( !( ent->r.svFlags & SVF_BOT ) ) continue;
 		if ( ent->health <= 0 ) continue;
 
 		// Parse bot type from name
-		const char* name = ent->client->pers.netname;
-		int botType = NW_BOT_NONE;
-		if ( strstr( name, "HEALER" ) ) botType = NW_BOT_HEALER;
-		else if ( strstr( name, "SHIELD" ) ) botType = NW_BOT_SHIELDER;
-		else if ( strstr( name, "ELITE" ) ) botType = NW_BOT_ELITE;
-
-		if ( botType == NW_BOT_HEALER ) {
+		Q_strncpyz( nameBuf, ent->client->pers.netname, sizeof(nameBuf) );
+		if ( strstr( nameBuf, "HEALER" ) ) {
 			// Healer: green glow, heals nearby bots every 3s
 			ent->s.constantLight = 0 | ( 255 << 8 ) | ( 0 << 16 ) | ( 120 << 24 );
 			if ( level.time % 3000 < 100 ) {
-				// Heal nearby bots within 200u
 				int j;
 				for ( j = 0; j < level.maxclients; j++ ) {
-					gentity_t* other = &g_entities[j];
-					if ( other == ent || !other->inuse || !other->client ) continue;
-					if ( !( other->r.svFlags & SVF_BOT ) ) continue;
-					if ( other->health <= 0 ) continue;
-					vec3_t diff;
-					VectorSubtract( ent->client->ps.origin, other->client->ps.origin, diff );
-					if ( VectorLength( diff ) < 200 ) {
-						other->health += 20;
-						if ( other->health > 100 ) other->health = 100;
+					healerTarget = &g_entities[j];
+					if ( healerTarget == ent || !healerTarget->inuse || !healerTarget->client ) continue;
+					if ( !( healerTarget->r.svFlags & SVF_BOT ) ) continue;
+					if ( healerTarget->health <= 0 ) continue;
+					{
+						vec3_t diff;
+						VectorSubtract( ent->client->ps.origin, healerTarget->client->ps.origin, diff );
+						if ( VectorLength( diff ) < 200 ) {
+							healerTarget->health += 20;
+							if ( healerTarget->health > 100 ) healerTarget->health = 100;
+						}
 					}
 				}
 			}
-		} else if ( botType == NW_BOT_SHIELDER ) {
+		} else if ( strstr( nameBuf, "SHIELD" ) ) {
 			// Shielder: blue glow, gives shield to nearby bot every 5s
 			ent->s.constantLight = 0 | ( 0 << 8 ) | ( 255 << 16 ) | ( 120 << 24 );
 			if ( level.time % 5000 < 100 ) {
 				int j;
 				for ( j = 0; j < level.maxclients; j++ ) {
-					gentity_t* other = &g_entities[j];
-					if ( other == ent || !other->inuse || !other->client ) continue;
-					if ( !( other->r.svFlags & SVF_BOT ) ) continue;
-					if ( other->health <= 0 ) continue;
-					vec3_t diff;
-					VectorSubtract( ent->client->ps.origin, other->client->ps.origin, diff );
-					if ( VectorLength( diff ) < 200 ) {
-						other->client->ps.stats[STAT_ARMOR] += 50;
-						if ( other->client->ps.stats[STAT_ARMOR] > 150 ) other->client->ps.stats[STAT_ARMOR] = 150;
+					shieldTarget = &g_entities[j];
+					if ( shieldTarget == ent || !shieldTarget->inuse || !shieldTarget->client ) continue;
+					if ( !( shieldTarget->r.svFlags & SVF_BOT ) ) continue;
+					if ( shieldTarget->health <= 0 ) continue;
+					{
+						vec3_t diff;
+						VectorSubtract( ent->client->ps.origin, shieldTarget->client->ps.origin, diff );
+						if ( VectorLength( diff ) < 200 ) {
+							shieldTarget->client->ps.stats[STAT_ARMOR] += 50;
+							if ( shieldTarget->client->ps.stats[STAT_ARMOR] > 150 ) shieldTarget->client->ps.stats[STAT_ARMOR] = 150;
+						}
 					}
 				}
 			}
-		} else if ( botType == NW_BOT_ELITE ) {
+		} else if ( strstr( nameBuf, "ELITE" ) ) {
 			// Elite: red glow, fast dash every 2s
 			ent->s.constantLight = 255 | ( 0 << 8 ) | ( 0 << 16 ) | ( 120 << 24 );
 			if ( level.time % 2000 < 100 ) {
-				// Dash forward
 				vec3_t forward;
 				AngleVectors( ent->client->ps.viewangles, forward, NULL, NULL );
 				VectorMA( ent->client->ps.origin, 100, forward, ent->client->ps.origin );
