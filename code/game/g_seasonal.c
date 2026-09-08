@@ -234,11 +234,12 @@ void NW_SeasonalCheck( int event ) {
 		nwLeaderboardEntry_t *e;
 		int score = NW_ScoreEntry( nw_seasonal.progress, victory, timeSec );
 		int i;
+		int insert;
 		qtime_t tm;
 		trap_RealTime( &tm );
 
 		// find insert position
-		int insert = nw_leaderboardCount;
+		insert = nw_leaderboardCount;
 		for ( i = 0; i < nw_leaderboardCount; i++ ) {
 			if ( score > nw_leaderboard[i].score ) {
 				insert = i;
