@@ -45,7 +45,7 @@ static void GH_ReadCvars( void ) {
 #define GH_LOCK_CD		20000
 #define GH_LOCK_MS		4000
 #define GH_LOCK_SPEED		900
-#define GH_NUKE_COST		80
+#define GH_NUKE_COST		85
 #define GH_NUKE_CD			45000
 #define GH_NUKE_PAINT		1500
 #define GH_NUKE_INBOUND		4000
@@ -479,7 +479,7 @@ void Cmd_GhostEmp_f( gentity_t *ent ) {
 	// Loadout-specific EMP: Saboteur has lower cost and shorter CD
 	if ( ent->client->pers.ghostLoadout == GH_LOADOUT_SABOTEUR ) {
 		cost = GH_EMP_COST - 10;
-		cd = GH_EMP_CD - 5000;
+		cd = GH_EMP_CD - 3000;
 	} else {
 		cost = GH_EMP_COST;
 		cd = GH_EMP_CD;
@@ -649,7 +649,7 @@ void Cmd_GhostNuke_f( gentity_t *ent ) {
 		return;
 	}
 	if ( gh_energy[id] < GH_NUKE_COST ) {
-		trap_SendServerCommand( id, "print \"Not enough energy for nuke (need 80)\n\"" );
+		trap_SendServerCommand( id, "print \"Not enough energy for nuke (need 85)\n\"" );
 		return;
 	}
 	gh_energy[id] -= GH_NUKE_COST;
