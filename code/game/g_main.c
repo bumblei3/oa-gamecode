@@ -273,8 +273,30 @@ static cvarTable_t gameCvarTable[] = {
 	// Bot type force CVar (v0.80) — for deterministic tests
 	{ NULL, "g_neonwave_forcebot", "0", CVAR_ARCHIVE, 0, qtrue },
 
-	// Seasonal rotation (v0.80) — weekly modifier pool offset for replayability
+	// Seasonal challenge system (v0.81)
 	{ NULL, "g_neonwave_seasonal", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_title", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_desc", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_target", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_progress", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_completed", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_reward", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_seasonal_week", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_0_name", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_0_score", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_0_victory", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_1_name", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_1_score", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_1_victory", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_2_name", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_2_score", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_2_victory", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_3_name", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_3_score", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_3_victory", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_4_name", "", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_4_score", "0", CVAR_ROM, 0, qtrue },
+	{ NULL, "ui_neonwave_lb_4_victory", "0", CVAR_ROM, 0, qtrue },
 
 	// Controller support (v0.80)
 	{ NULL, "in_joystick", "1", CVAR_ARCHIVE, 0, qtrue },

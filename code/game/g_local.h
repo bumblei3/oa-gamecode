@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 // g_local.h -- local definitions for game module
+#ifndef G_LOCAL_H
+#define G_LOCAL_H
 
 #include "../qcommon/q_shared.h"
 #include "bg_public.h"
@@ -1558,5 +1560,7 @@ void MapInfoPrint(mapinfo_result_t *info);
 // leilei - monsters
 
 void monster_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+
+#endif // G_LOCAL_H
 
 

@@ -1,6 +1,6 @@
 // NeonArena wave-survival gametype logic (GT_NEONWAVE)
 // Spawns escalating bot waves, tracks score + best-wave highscore.
-#include "g_local.h"
+#include "g_neonwave.h"
 
 #ifdef NEONARENA_MOD
 
@@ -487,6 +487,7 @@ void NeonWave_Reset( void ) {
 	NW_DailyInit();
 	NW_LoadRecords();
 	NW_LoadAchievements();
+	NW_SeasonalInit();
 	if ( nw_dailyActive ) {
 		NW_LoadDailyRecords();
 	}
@@ -540,10 +541,11 @@ for ( i = 0; i < level.maxclients; i++ ) {
 }
 }
 
-static int NW_CountHumans( void ) {
-	int i, total = 0, standin = 0;
-	gentity_t *ent;
-	for ( i = 0; i < level.maxclients; i++ ) {
+// count humans (non-bot, non-spectator, connected)
+int NW_CountHumans( void ) {
+int i, total = 0, standin = 0;
+gentity_t *ent;
+for ( i = 0; i < level.maxclients; i++ ) {
 		ent = &g_entities[i];
 		if ( !ent->inuse || !ent->client ) continue;
 		if ( ent->client->pers.connected != CON_CONNECTED ) continue;
@@ -2211,6 +2213,18 @@ int NeonWave_GetWave( void ) {
 	return nw_wave;
 }
 
+int NW_GetModifiersSeen( void ) {
+	return nw_modifiersSeen;
+}
+
+int NW_GetRunStartTime( void ) {
+	return nw_runStartTime;
+}
+
+qboolean NW_GetOverVictory( void ) {
+	return nw_overVictory;
+}
+
 int NW_BossPhase( void ) {
 	return nw_bossPhase;
 }
@@ -2342,8 +2356,9 @@ static void NW_EnterBreak( void ) {
 	}
 	NW_SendStatus( NW_EV_CLEARED );
 	NeonWave_LogPayload();
-	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\\n\"", nw_wave ) );
+	trap_SendServerCommand( -1, va( "cp \\\"WAVE %i CLEARED\\\\n\\\"", nw_wave ) );
 	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, NW_WAVE_BREAK );
+	NW_SeasonalProgress( nw_wave );
 	NW_Autopick();
 }
 
@@ -2622,6 +2637,7 @@ static void NW_GameOver( int event, const char *why ) {
 	G_Printf( "NeonWave: %s (wave %i)\n", why, nw_wave );
 	NW_WriteRunStats( event );
 	NeonWave_LogPayload();
+	NW_SeasonalCheck( event );
 
 	// dispatch replay test hooks by g_neonwave_replaytest value
 	trap_Cvar_VariableStringBuffer( "g_neonwave_replaytest", rtBuf, sizeof(rtBuf) );

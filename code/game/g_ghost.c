@@ -1,6 +1,7 @@
 // StarCraft-inspired Ghost kit for NeonArena (OpenArena).
 // Activate with g_neonwave_ghost 1. Commands: cloak, emp, lockdown, nuke.
 #include "g_local.h"
+#include "g_neonwave.h"
 
 #ifdef NEONARENA_MOD
 
