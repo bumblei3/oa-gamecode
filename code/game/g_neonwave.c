@@ -2357,7 +2357,7 @@ static void NW_EnterBreak( void ) {
 	NW_SendStatus( NW_EV_CLEARED );
 	NeonWave_LogPayload();
 	trap_SendServerCommand( -1, va( "cp \\\"WAVE %i CLEARED\\\\n\\\"", nw_wave ) );
-	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, NW_WAVE_BREAK );
+	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, nw_breakEnd - level.time );
 	NW_SeasonalProgress( nw_wave );
 	NW_Autopick();
 }
