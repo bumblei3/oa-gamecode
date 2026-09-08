@@ -24,23 +24,6 @@
 #define NW_BOSS_COUNT           13      // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER CHRONOMANCER VOIDWALKER
 #endif
 
-// ---- constants ----
-#ifndef NW_FIRST_WAVE_DELAY
-#define NW_FIRST_WAVE_DELAY     5000    // ms after map start
-#endif
-#ifndef NW_WAVE_BREAK
-#define NW_WAVE_BREAK           12000   // ms between waves (perk shop)
-#endif
-#ifndef NW_MAX_WAVE
-#define NW_MAX_WAVE             20
-#endif
-#ifndef NW_BOSS_WAVE
-#define NW_BOSS_WAVE            10      // from here on, each wave gets one boss drone
-#endif
-#ifndef NW_BOSS_COUNT
-#define NW_BOSS_COUNT           13      // SNIPER TANK SWARM GLASS WARDEN BERSERKER TELEPORTER HEALER SHIELDER SNIPELITE DEMOLISHER CHRONOMANCER VOIDWALKER
-#endif
-
 // CS_NEONWAVE payload events
 #ifndef NW_EV_RUNNING
 #define NW_EV_RUNNING           0
