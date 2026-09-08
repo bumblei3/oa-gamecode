@@ -3171,6 +3171,14 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 				}
 			}
 			break;
+		case K_JOY2:
+			if (!g_waitingForKey && menu->onESC) {
+				itemDef_t it;
+				it.parent = menu;
+				it.transitionEnd = menu->esctransitionEnd;
+				Item_RunScript(&it, menu->onESC);
+			}
+			break;
 	}
 }
 
