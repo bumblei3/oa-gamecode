@@ -342,6 +342,7 @@ typedef struct {
 	int         ghostEnergy;       // current ghost energy
 	int         ghostSnipe;        // snipe zoom end time
 	int         ghostMultiScan;    // multi-scan damage bonus end time
+	int         ghostLoadout;      // 0=Infiltrator, 1=Saboteur, 2=Spectre
 #endif
 } clientPersistant_t;
 
@@ -959,6 +960,7 @@ void Cmd_GhostBeam_f( gentity_t *ent );
 void Cmd_GhostCluster_f( gentity_t *ent );
 void Cmd_GhostEmpWave_f( gentity_t *ent );
 void Cmd_GhostMultiScan_f( gentity_t *ent );
+void Cmd_GhostLoadout_f( gentity_t *ent );
 void CheckTeamVote( int team );
 
 //

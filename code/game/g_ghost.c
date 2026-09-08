@@ -11,6 +11,12 @@
 #define GH_REGEN_MS		1000
 #define GH_REGEN_AMT		4
 
+// Ghost Loadouts (v1.2)
+#define GH_LOADOUT_INFILTRATOR	0
+#define GH_LOADOUT_SABOTEUR	1
+#define GH_LOADOUT_SPECTRE	2
+#define GH_LOADOUT_COUNT	3
+
 static int gh_cvar_start;
 static int gh_cvar_max;
 static int gh_cvar_regen;
@@ -210,7 +216,13 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	}
 	GH_ReadCvars();
 	id = GH_Id( ent );
-	gh_energy[id] = gh_cvar_start;
+	// Loadout-specific starting energy
+	switch ( ent->client->pers.ghostLoadout ) {
+		case GH_LOADOUT_INFILTRATOR: gh_energy[id] = 80; break;
+		case GH_LOADOUT_SABOTEUR: gh_energy[id] = 70; break;
+		case GH_LOADOUT_SPECTRE: gh_energy[id] = 90; break;
+		default: gh_energy[id] = gh_cvar_start; break;
+	}
 	gh_lastRegen[id] = level.time;
 	gh_empUntil[id] = 0;
 	gh_lockUntil[id] = 0;
@@ -228,10 +240,10 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	gh_coneStart[id] = 0;
 	gh_inCone[id] = 0;
 	ent->client->ps.powerups[PW_INVIS] = 0;
-	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_cvar_start;
+	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ST] = 0;
-	G_Printf( "Ghost: %s joined the Ghost team\\n", ent->client->pers.netname );
+	G_Printf( "Ghost: %s joined the Ghost team (loadout %i)\\n", ent->client->pers.netname, ent->client->pers.ghostLoadout );
 }
 
 void NW_GhostOnKill( gentity_t *attacker ) {
@@ -446,6 +458,11 @@ void Cmd_GhostCloak_f( gentity_t *ent ) {
 		return;
 	}
 	id = GH_Id( ent );
+	// Loadout check: Spectre has no cloak
+	if ( ent->client->pers.ghostLoadout == GH_LOADOUT_SPECTRE ) {
+		trap_SendServerCommand( id, "cp \"CLOAK NOT AVAILABLE\\n\"" );
+		return;
+	}
 	if ( GH_Cloaked( ent ) ) {
 		NW_GhostBreakCloak( ent );
 		trap_SendServerCommand( id, "cp \"DECLOAKED\n\"" );
@@ -464,6 +481,7 @@ void Cmd_GhostCloak_f( gentity_t *ent ) {
 
 void Cmd_GhostEmp_f( gentity_t *ent ) {
 	int id;
+	int cost, cd;
 	vec3_t forward, right, up, muzzle;
 	gentity_t *bolt;
 	if ( !NW_GhostActive() ) {
@@ -474,15 +492,23 @@ void Cmd_GhostEmp_f( gentity_t *ent ) {
 		return;
 	}
 	id = GH_Id( ent );
+	// Loadout-specific EMP: Saboteur has lower cost and shorter CD
+	if ( ent->client->pers.ghostLoadout == GH_LOADOUT_SABOTEUR ) {
+		cost = GH_EMP_COST - 10;
+		cd = GH_EMP_CD - 5000;
+	} else {
+		cost = GH_EMP_COST;
+		cd = GH_EMP_CD;
+	}
 	if ( gh_empUntil[id] > level.time ) {
 		return;
 	}
-	if ( gh_energy[id] < GH_EMP_COST ) {
+	if ( gh_energy[id] < cost ) {
 		trap_SendServerCommand( id, "print \"Not enough energy for EMP\n\"" );
 		return;
 	}
-	gh_energy[id] -= GH_EMP_COST;
-	gh_empUntil[id] = level.time + GH_EMP_CD;
+	gh_energy[id] -= cost;
+	gh_empUntil[id] = level.time + cd;
 	NW_GhostBreakCloak( ent );
 	AngleVectors( ent->client->ps.viewangles, forward, right, up );
 	CalcMuzzlePoint( ent, forward, right, up, muzzle );
@@ -574,6 +600,7 @@ void NW_GhostLockImpact( gentity_t *bolt, gentity_t *other ) {
 
 void Cmd_GhostLockdown_f( gentity_t *ent ) {
 	int id;
+	int cost;
 	vec3_t forward, right, up, muzzle;
 	gentity_t *bolt;
 	if ( !NW_GhostActive() ) {
@@ -584,17 +611,19 @@ void Cmd_GhostLockdown_f( gentity_t *ent ) {
 		return;
 	}
 	id = GH_Id( ent );
+	// Loadout-specific Lockdown: Saboteur has lower cost
+	cost = ( ent->client->pers.ghostLoadout == GH_LOADOUT_SABOTEUR ) ? GH_LOCK_COST - 15 : GH_LOCK_COST;
 	if ( gh_lockCdUntil[id] > level.time ) {
 		return;
 	}
 	if ( gh_lockFlying[id] ) {
 		return;
 	}
-	if ( gh_energy[id] < GH_LOCK_COST ) {
-		trap_SendServerCommand( id, "print \"Not enough energy for lockdown (need 50)\n\"" );
+	if ( gh_energy[id] < cost ) {
+		trap_SendServerCommand( id, "print \"Not enough energy for lockdown\n\"" );
 		return;
 	}
-	gh_energy[id] -= GH_LOCK_COST;
+	gh_energy[id] -= cost;
 	gh_lockFlying[id] = 1;
 	NW_GhostBreakCloak( ent );
 	AngleVectors( ent->client->ps.viewangles, forward, right, up );
@@ -624,6 +653,11 @@ void Cmd_GhostNuke_f( gentity_t *ent ) {
 		return;
 	}
 	id = GH_Id( ent );
+	// Loadout check: only Spectre has nuke
+	if ( ent->client->pers.ghostLoadout != GH_LOADOUT_SPECTRE ) {
+		trap_SendServerCommand( id, "cp \"NUKE NOT AVAILABLE\\n\"" );
+		return;
+	}
 	if ( gh_paintUntil[id] > level.time || gh_boomAt[id] > level.time ) {
 		return;
 	}
@@ -987,6 +1021,64 @@ void NW_GhostFrame( void ) {
 	}
 }
 
+void Cmd_GhostLoadout_f( gentity_t *ent ) {
+	int id;
+	int loadout;
+	char *name;
+	char arg[8];
+	if ( !NW_GhostActive() || !ent || !ent->client ) {
+		return;
+	}
+	id = GH_Id( ent );
+	if ( id < 0 || id >= MAX_CLIENTS ) {
+		return;
+	}
+	if ( trap_Argc() < 2 ) {
+		loadout = ent->client->pers.ghostLoadout;
+		switch ( loadout ) {
+			case GH_LOADOUT_INFILTRATOR: name = "INFILTRATOR"; break;
+			case GH_LOADOUT_SABOTEUR: name = "SABOTEUR"; break;
+			case GH_LOADOUT_SPECTRE: name = "SPECTRE"; break;
+			default: name = "UNKNOWN"; break;
+		}
+		trap_SendServerCommand( id, va( "print \"Current Ghost loadout: %s\\n\"", name ) );
+		trap_SendServerCommand( id, "print \"Usage: loadout <0|1|2> (0=Infiltrator, 1=Saboteur, 2=Spectre)\\n\"" );
+		return;
+	}
+	trap_Argv( 1, arg, sizeof( arg ) );
+	loadout = atoi( arg );
+	if ( loadout < 0 || loadout >= GH_LOADOUT_COUNT ) {
+		trap_SendServerCommand( id, "print \"Invalid loadout. Use 0, 1, or 2.\\n\"" );
+		return;
+	}
+	ent->client->pers.ghostLoadout = loadout;
+	switch ( loadout ) {
+		case GH_LOADOUT_INFILTRATOR:
+			name = "INFILTRATOR";
+			trap_SendServerCommand( id, "cp \"LOADOUT: INFILTRATOR\\n\"" );
+			break;
+		case GH_LOADOUT_SABOTEUR:
+			name = "SABOTEUR";
+			trap_SendServerCommand( id, "cp \"LOADOUT: SABOTEUR\\n\"" );
+			break;
+		case GH_LOADOUT_SPECTRE:
+			name = "SPECTRE";
+			trap_SendServerCommand( id, "cp \"LOADOUT: SPECTRE\\n\"" );
+			break;
+		default: break;
+	}
+	trap_SendServerCommand( id, va( "print \"Ghost loadout set to: %s\\n\"", name ) );
+	// Apply loadout-specific starting energy if player just spawned
+	if ( ent->client->sess.spectatorState == SPECTATOR_NOT && ent->health > 0 ) {
+		switch ( loadout ) {
+			case GH_LOADOUT_INFILTRATOR: gh_energy[id] = 80; break;
+			case GH_LOADOUT_SABOTEUR: gh_energy[id] = 70; break;
+			case GH_LOADOUT_SPECTRE: gh_energy[id] = 90; break;
+		}
+		ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
+	}
+}
+
 void Cmd_GhostMultiScan_f( gentity_t *ent ) {
 	int id;
 	int i;
@@ -996,6 +1088,11 @@ void Cmd_GhostMultiScan_f( gentity_t *ent ) {
 	}
 	id = GH_Id( ent );
 	if ( id < 0 || id >= MAX_CLIENTS ) {
+		return;
+	}
+	// Loadout check: only Spectre has multiscan
+	if ( ent->client->pers.ghostLoadout != GH_LOADOUT_SPECTRE ) {
+		trap_SendServerCommand( id, "cp \"MULTI-SCAN NOT AVAILABLE\\n\"" );
 		return;
 	}
 	if ( gh_multiCdUntil[id] > level.time ) {

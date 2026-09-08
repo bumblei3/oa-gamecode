@@ -2420,6 +2420,7 @@ commands_t cmds[ ] =
 	{ "cluster", CMD_LIVING, Cmd_GhostCluster_f },
 	{ "empwave", CMD_LIVING, Cmd_GhostEmpWave_f },
 	{ "multiscan", CMD_LIVING, Cmd_GhostMultiScan_f },
+	{ "loadout", CMD_LIVING, Cmd_GhostLoadout_f },
 #endif
 	// normal commands
 	{ "team", 0, Cmd_Team_f },
