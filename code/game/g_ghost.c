@@ -129,6 +129,9 @@ static int GH_Id( gentity_t *ent ) {
 	return (int)( ent - g_entities );
 }
 
+static const char *GH_LoadoutName( int lo );
+static void GH_SetLoadout( gentity_t *ent, int loadout );
+
 static void GH_Sound( gentity_t *ent, char *path ) {
 	if ( !ent ) {
 		return;
@@ -211,6 +214,12 @@ void NW_GhostSpawn( gentity_t *ent ) {
 			ent->client->pers.ghostLoadout = lo;
 		}
 	}
+	trap_Cvar_VariableStringBuffer( "g_ghost_cycletest", buf, sizeof( buf ) );
+	if ( atoi( buf ) ) {
+		int lo = ( ent->client->pers.ghostLoadout + 1 ) % GH_LOADOUT_COUNT;
+		trap_Cvar_Set( "g_ghost_cycletest", "0" );
+		GH_SetLoadout( ent, lo );
+	}
 	id = GH_Id( ent );
 	// Loadout-specific starting energy
 	switch ( ent->client->pers.ghostLoadout ) {
@@ -236,8 +245,11 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	ent->client->ps.powerups[PW_INVIS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
-	ent->client->ps.stats[STAT_GHOST_ST] = 0;
+	ent->client->ps.stats[STAT_GHOST_ST] = ( ent->client->pers.ghostLoadout << 16 );
 	G_Printf( "Ghost: %s joined the Ghost team (loadout %i)\n", ent->client->pers.netname, ent->client->pers.ghostLoadout );
+	if ( !( ent->r.svFlags & SVF_BOT ) ) {
+		trap_SendServerCommand( id, va( "cp \"GHOST: %s\\nL next kit\\n\"", GH_LoadoutName( ent->client->pers.ghostLoadout ) ) );
+	}
 }
 
 void NW_GhostOnKill( gentity_t *attacker ) {
@@ -258,6 +270,34 @@ void NW_GhostOnKill( gentity_t *attacker ) {
 	}
 }
 
+static const char *GH_LoadoutName( int lo ) {
+	if ( lo == GH_LOADOUT_SABOTEUR ) {
+		return "SABOTEUR";
+	}
+	if ( lo == GH_LOADOUT_SPECTRE ) {
+		return "SPECTRE";
+	}
+	return "INFILTRATOR";
+}
+
+static void GH_SetLoadout( gentity_t *ent, int loadout ) {
+	int id;
+	const char *name;
+	id = GH_Id( ent );
+	if ( id < 0 || id >= MAX_CLIENTS || !ent->client ) {
+		return;
+	}
+	if ( loadout < 0 || loadout >= GH_LOADOUT_COUNT ) {
+		return;
+	}
+	ent->client->pers.ghostLoadout = loadout;
+	trap_Cvar_Set( "g_ghost_loadout", va( "%i", loadout ) );
+	name = GH_LoadoutName( loadout );
+	G_Printf( "Ghost: loadout set to %i (%s)\n", loadout, name );
+	trap_SendServerCommand( id, va( "cp \"LOADOUT: %s\\n\"", name ) );
+	trap_SendServerCommand( id, va( "print \"Ghost loadout set to: %s  (L next kit)\\n\"", name ) );
+}
+
 static int GH_SecLeft( int until ) {
 	int ms;
 	ms = until - level.time;
@@ -273,7 +313,7 @@ static int GH_SecLeft( int until ) {
 
 static void GH_SyncHud( gentity_t *ent ) {
 	int id, cloakLeft, empCd, nukeCd, lockCd, empS, lockS, nukeS, cloakS;
-	int st, nukeSec;
+	int st, nukeSec, multiS, loadout;
 	id = GH_Id( ent );
 	cloakLeft = 0;
 	if ( GH_Cloaked( ent ) ) {
@@ -317,9 +357,17 @@ static void GH_SyncHud( gentity_t *ent ) {
 	} else {
 		trap_Cvar_Set( "g_ghost_status", "" );
 	}
+	multiS = GH_SecLeft( gh_multiCdUntil[id] );
+	loadout = ent->client->pers.ghostLoadout;
+	if ( loadout < 0 ) {
+		loadout = 0;
+	}
+	if ( loadout > 255 ) {
+		loadout = 255;
+	}
 	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
 	ent->client->ps.stats[STAT_GHOST_CDS] = empS | ( lockS << 8 ) | ( nukeS << 16 ) | ( cloakS << 24 );
-	ent->client->ps.stats[STAT_GHOST_ST] = st | ( nukeSec << 8 );
+	ent->client->ps.stats[STAT_GHOST_ST] = st | ( nukeSec << 8 ) | ( loadout << 16 ) | ( multiS << 24 );
 	trap_Cvar_Set( "g_ghost_energy", va( "%i", gh_energy[id] ) );
 	trap_Cvar_Set( "g_ghost_cloakms", va( "%i", cloakLeft ) );
 	trap_Cvar_Set( "g_ghost_empcd", va( "%i", empCd ) );
@@ -968,7 +1016,7 @@ void NW_GhostFrame( void ) {
 void Cmd_GhostLoadout_f( gentity_t *ent ) {
 	int id;
 	int loadout;
-	char *name;
+	const char *name;
 	char arg[8];
 	if ( !NW_GhostActive() || !ent || !ent->client ) {
 		return;
@@ -978,49 +1026,23 @@ void Cmd_GhostLoadout_f( gentity_t *ent ) {
 		return;
 	}
 	if ( trap_Argc() < 2 ) {
-		loadout = ent->client->pers.ghostLoadout;
-		switch ( loadout ) {
-			case GH_LOADOUT_INFILTRATOR: name = "INFILTRATOR"; break;
-			case GH_LOADOUT_SABOTEUR: name = "SABOTEUR"; break;
-			case GH_LOADOUT_SPECTRE: name = "SPECTRE"; break;
-			default: name = "UNKNOWN"; break;
-		}
+		name = GH_LoadoutName( ent->client->pers.ghostLoadout );
 		trap_SendServerCommand( id, va( "print \"Current Ghost loadout: %s\\n\"", name ) );
-		trap_SendServerCommand( id, "print \"Usage: loadout <0|1|2> (0=Infiltrator, 1=Saboteur, 2=Spectre)\\n\"" );
+		trap_SendServerCommand( id, "print \"Usage: loadout next | loadout <0|1|2>  (L cycles)\\n\"" );
+		trap_SendServerCommand( id, va( "cp \"GHOST: %s\\nL next kit\\n\"", name ) );
 		return;
 	}
 	trap_Argv( 1, arg, sizeof( arg ) );
-	loadout = atoi( arg );
-	if ( loadout < 0 || loadout >= GH_LOADOUT_COUNT ) {
-		trap_SendServerCommand( id, "print \"Invalid loadout. Use 0, 1, or 2.\\n\"" );
+	if ( !Q_stricmp( arg, "next" ) || !Q_stricmp( arg, "cycle" ) ) {
+		GH_SetLoadout( ent, ( ent->client->pers.ghostLoadout + 1 ) % GH_LOADOUT_COUNT );
 		return;
 	}
-	ent->client->pers.ghostLoadout = loadout;
-	switch ( loadout ) {
-		case GH_LOADOUT_INFILTRATOR:
-			name = "INFILTRATOR";
-			trap_SendServerCommand( id, "cp \"LOADOUT: INFILTRATOR\\n\"" );
-			break;
-		case GH_LOADOUT_SABOTEUR:
-			name = "SABOTEUR";
-			trap_SendServerCommand( id, "cp \"LOADOUT: SABOTEUR\\n\"" );
-			break;
-		case GH_LOADOUT_SPECTRE:
-			name = "SPECTRE";
-			trap_SendServerCommand( id, "cp \"LOADOUT: SPECTRE\\n\"" );
-			break;
-		default: break;
+	loadout = atoi( arg );
+	if ( loadout < 0 || loadout >= GH_LOADOUT_COUNT ) {
+		trap_SendServerCommand( id, "print \"Invalid loadout. Use next, 0, 1, or 2.\\n\"" );
+		return;
 	}
-	trap_SendServerCommand( id, va( "print \"Ghost loadout set to: %s\\n\"", name ) );
-	// Apply loadout-specific starting energy if player just spawned
-	if ( ent->client->sess.spectatorState == SPECTATOR_NOT && ent->health > 0 ) {
-		switch ( loadout ) {
-			case GH_LOADOUT_INFILTRATOR: gh_energy[id] = 80; break;
-			case GH_LOADOUT_SABOTEUR: gh_energy[id] = 70; break;
-			case GH_LOADOUT_SPECTRE: gh_energy[id] = 90; break;
-		}
-		ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
-	}
+	GH_SetLoadout( ent, loadout );
 }
 
 void Cmd_GhostMultiScan_f( gentity_t *ent ) {

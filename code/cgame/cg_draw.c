@@ -1781,7 +1781,7 @@ static float CG_DrawNeonWave(float y) {
 	{
 		char gbuf[8], pip[16];
 		int ghostOn, energy, cds, st, empS, lockS, nukeS, cloakS, stCode, nukeSec;
-		int barW, px;
+		int barW, px, lo, multiS;
 		vec4_t gcol = {0.2f, 0.85f, 1.0f, 1.0f};
 		vec4_t ready = {0.2f, 0.85f, 1.0f, 0.95f};
 		vec4_t cool = {1.0f, 0.45f, 0.12f, 0.95f};
@@ -1802,12 +1802,20 @@ static float CG_DrawNeonWave(float y) {
 			cloakS = ( cds >> 24 ) & 255;
 			stCode = st & 255;
 			nukeSec = ( st >> 8 ) & 255;
+			lo = ( st >> 16 ) & 255;
+			multiS = ( st >> 24 ) & 255;
 			CG_FillRect( 16, 412, 120, 10, barBg );
 			barW = 120 * energy / 100;
 			if ( barW > 0 ) {
 				CG_FillRect( 16, 412, barW, 10, barFg );
 			}
-			Com_sprintf( s, sizeof(s), "GHOST %i", energy );
+			if ( lo == 1 ) {
+				Com_sprintf( s, sizeof(s), "SAB %i", energy );
+			} else if ( lo == 2 ) {
+				Com_sprintf( s, sizeof(s), "SPEC %i", energy );
+			} else {
+				Com_sprintf( s, sizeof(s), "INFIL %i", energy );
+			}
 			CG_DrawSmallStringColor( 16, 424, s, gcol );
 			// Controller indicator (v0.80)
 			{
@@ -1818,13 +1826,15 @@ static float CG_DrawNeonWave(float y) {
 				}
 			}
 			px = 16;
-			if ( cloakS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "J CLOAK %i", cloakS );
-				CG_DrawSmallStringColor( px, 440, pip, cool );
-			} else {
-				CG_DrawSmallStringColor( px, 440, "J CLOAK", ready );
+			if ( lo != 2 ) {
+				if ( cloakS > 0 ) {
+					Com_sprintf( pip, sizeof(pip), "J CLOAK %i", cloakS );
+					CG_DrawSmallStringColor( px, 440, pip, cool );
+				} else {
+					CG_DrawSmallStringColor( px, 440, "J CLOAK", ready );
+				}
+				px += 80;
 			}
-			px += 80;
 			if ( empS > 0 ) {
 				Com_sprintf( pip, sizeof(pip), "H EMP %i", empS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
@@ -1839,11 +1849,20 @@ static float CG_DrawNeonWave(float y) {
 				CG_DrawSmallStringColor( px, 440, "K LOCK", ready );
 			}
 			px += 80;
-			if ( nukeS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "N NUKE %i", nukeS );
-				CG_DrawSmallStringColor( px, 440, pip, cool );
-			} else {
-				CG_DrawSmallStringColor( px, 440, "N NUKE", ready );
+			if ( lo == 2 ) {
+				if ( nukeS > 0 ) {
+					Com_sprintf( pip, sizeof(pip), "N NUKE %i", nukeS );
+					CG_DrawSmallStringColor( px, 440, pip, cool );
+				} else {
+					CG_DrawSmallStringColor( px, 440, "N NUKE", ready );
+				}
+				px += 80;
+				if ( multiS > 0 ) {
+					Com_sprintf( pip, sizeof(pip), "M SCAN %i", multiS );
+					CG_DrawSmallStringColor( px, 440, pip, cool );
+				} else {
+					CG_DrawSmallStringColor( px, 440, "M SCAN", ready );
+				}
 			}
 			s[0] = 0;
 			if ( stCode == 1 ) {

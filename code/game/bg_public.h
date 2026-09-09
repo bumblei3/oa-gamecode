@@ -259,7 +259,7 @@ typedef enum {
 #ifdef NEONARENA_MOD
 	, STAT_GHOST_ENERGY				// 0-100
 	, STAT_GHOST_CDS					// empSec | lockSec<<8 | nukeSec<<16 | cloakSec<<24
-	, STAT_GHOST_ST					// status | nukeCountdown<<8
+	, STAT_GHOST_ST					// status | nukeSec<<8 | loadout<<16 | multiS<<24
 #endif
 } statIndex_t;
 
