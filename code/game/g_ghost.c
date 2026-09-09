@@ -219,6 +219,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 		case GH_LOADOUT_SPECTRE: gh_energy[id] = 90; break;
 		default: gh_energy[id] = gh_cvar_start; break;
 	}
+	G_Printf( "Ghost: %s ENERGY=%i (loadout %i)\n", ent->client->pers.netname, gh_energy[id], ent->client->pers.ghostLoadout );
 	gh_lastRegen[id] = level.time;
 	gh_empUntil[id] = 0;
 	gh_lockUntil[id] = 0;
@@ -236,7 +237,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	ent->client->ps.stats[STAT_GHOST_ENERGY] = gh_energy[id];
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ST] = 0;
-	G_Printf( "Ghost: %s joined the Ghost team (loadout %i)\\n", ent->client->pers.netname, ent->client->pers.ghostLoadout );
+	G_Printf( "Ghost: %s joined the Ghost team (loadout %i)\n", ent->client->pers.netname, ent->client->pers.ghostLoadout );
 }
 
 void NW_GhostOnKill( gentity_t *attacker ) {
