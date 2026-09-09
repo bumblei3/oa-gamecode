@@ -195,6 +195,7 @@ void NW_GhostBreakCloak( gentity_t *ent ) {
 
 void NW_GhostSpawn( gentity_t *ent ) {
 	int id;
+	char buf[8];
 	if ( !ent || !ent->client ) {
 		return;
 	}
@@ -202,6 +203,14 @@ void NW_GhostSpawn( gentity_t *ent ) {
 		return;
 	}
 	GH_ReadCvars();
+	// Apply g_ghost_loadout cvar if set (0=Infiltrator, 1=Saboteur, 2=Spectre)
+	trap_Cvar_VariableStringBuffer( "g_ghost_loadout", buf, sizeof( buf ) );
+	if ( buf[0] ) {
+		int lo = atoi( buf );
+		if ( lo >= 0 && lo < GH_LOADOUT_COUNT ) {
+			ent->client->pers.ghostLoadout = lo;
+		}
+	}
 	id = GH_Id( ent );
 	// Loadout-specific starting energy
 	switch ( ent->client->pers.ghostLoadout ) {
