@@ -872,6 +872,7 @@ typedef struct {
 	qhandle_t	neonBossShellShader;
 	qhandle_t	neonFlareShader;
 	qhandle_t	neonVignetteShader;
+	qhandle_t	neonGridShader;
 	qhandle_t	neonBarShader;
 	qhandle_t	neonBossShellPulseShader;
 	qhandle_t	neonModifierEdgeShader;

@@ -22,6 +22,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#ifdef NEONARENA_MOD
+#include "../game/neon_maplook.h"
+#endif
 
 #ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
@@ -113,6 +116,9 @@ vmCvar_t cg_bobmodel; // leilei
 vmCvar_t cg_kickScale;
 vmCvar_t cg_swingSpeed;
 vmCvar_t cg_shadows;
+#ifdef NEONARENA_MOD
+vmCvar_t cg_neon_grid;
+#endif
 vmCvar_t cg_gibs;
 vmCvar_t cg_drawTimer;
 vmCvar_t cg_drawFPS;
@@ -323,6 +329,9 @@ static cvarTable_t cvarTable[] = {// bk001129
 	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE},
 	{ &cg_viewnudge, "cg_viewnudge", "0", CVAR_ARCHIVE},
 	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE},
+#ifdef NEONARENA_MOD
+	{ &cg_neon_grid, "cg_neon_grid", "0.22", CVAR_ARCHIVE},
+#endif
 	{ &cg_gibs, "cg_gibs", "1", CVAR_ARCHIVE},
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE},
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE},
@@ -1265,6 +1274,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.neonBossShellPulseShader = trap_R_RegisterShader("neonarena/bossShellPulse");
 	cgs.media.neonFlareShader = trap_R_RegisterShader("neonarena/flare");
 	cgs.media.neonVignetteShader = trap_R_RegisterShader("gfx/2d/neon_vignette");
+	cgs.media.neonGridShader = trap_R_RegisterShader("gfx/2d/neon_grid");
 	cgs.media.neonBarShader = trap_R_RegisterShader("gfx/2d/neon_bar");
 	cgs.media.neonModifierEdgeShader = trap_R_RegisterShader("neonarena/modifierEdgeGlow");
 	cgs.media.neonComboChestShader = trap_R_RegisterShader("gfx/2d/comboChestPulse");
@@ -2553,10 +2563,17 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 #endif
 	// end loadingscreen
 #ifdef NEONARENA_MOD
-	trap_SendConsoleCommand("exec neon-look.cfg\n");
-	trap_SendConsoleCommand("exec neon-gfx.cfg\n");
+	/* neon-look/gfx already ran from autoexec; re-exec would clobber per-map gamma */
 	if (CG_GhostKit()) {
 		trap_SendConsoleCommand("exec ghost-binds.cfg\n");
+	}
+	{
+		const nwMapLook_t *look;
+		look = NW_MapLook( cgs.mapname );
+		trap_Cvar_Set( "r_gamma", look->gamma );
+		trap_Cvar_Set( "r_bloom_intensity", look->bloom_i );
+		trap_Cvar_Set( "r_bloom_threshold", look->bloom_t );
+		trap_Cvar_Set( "cg_neon_grid", look->grid );
 	}
 #endif
 }

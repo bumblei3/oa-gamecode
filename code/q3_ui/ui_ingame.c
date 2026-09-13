@@ -186,6 +186,61 @@ void InGame_MenuInit( void ) {
 	s_ingame.frame.width				= 466;//359;
 	s_ingame.frame.height				= 332;//256;
 
+#ifdef NEONARENA_MOD
+	if ( gametype == GT_NEONWAVE ) {
+		y = 120;
+		s_ingame.resume.generic.type		= MTYPE_PTEXT;
+		s_ingame.resume.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+		s_ingame.resume.generic.x		= 320;
+		s_ingame.resume.generic.y		= y;
+		s_ingame.resume.generic.id		= ID_RESUME;
+		s_ingame.resume.generic.callback	= InGame_Event;
+		s_ingame.resume.string			= "RESUME";
+		s_ingame.resume.color			= color_red;
+		s_ingame.resume.style			= UI_CENTER|UI_SMALLFONT;
+
+		y += INGAME_MENU_VERTICAL_SPACING;
+		s_ingame.restart.generic.type		= MTYPE_PTEXT;
+		s_ingame.restart.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+		s_ingame.restart.generic.x		= 320;
+		s_ingame.restart.generic.y		= y;
+		s_ingame.restart.generic.id		= ID_RESTART;
+		s_ingame.restart.generic.callback	= InGame_Event;
+		s_ingame.restart.string			= "RESTART";
+		s_ingame.restart.color			= color_red;
+		s_ingame.restart.style			= UI_CENTER|UI_SMALLFONT;
+
+		y += INGAME_MENU_VERTICAL_SPACING;
+		s_ingame.setup.generic.type		= MTYPE_PTEXT;
+		s_ingame.setup.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+		s_ingame.setup.generic.x		= 320;
+		s_ingame.setup.generic.y		= y;
+		s_ingame.setup.generic.id		= ID_SETUP;
+		s_ingame.setup.generic.callback	= InGame_Event;
+		s_ingame.setup.string			= "SETUP";
+		s_ingame.setup.color			= color_red;
+		s_ingame.setup.style			= UI_CENTER|UI_SMALLFONT;
+
+		y += INGAME_MENU_VERTICAL_SPACING;
+		s_ingame.leave.generic.type		= MTYPE_PTEXT;
+		s_ingame.leave.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+		s_ingame.leave.generic.x		= 320;
+		s_ingame.leave.generic.y		= y;
+		s_ingame.leave.generic.id		= ID_LEAVEARENA;
+		s_ingame.leave.generic.callback	= InGame_Event;
+		s_ingame.leave.string			= "LEAVE";
+		s_ingame.leave.color			= color_red;
+		s_ingame.leave.style			= UI_CENTER|UI_SMALLFONT;
+
+		Menu_AddItem( &s_ingame.menu, &s_ingame.frame );
+		Menu_AddItem( &s_ingame.menu, &s_ingame.resume );
+		Menu_AddItem( &s_ingame.menu, &s_ingame.restart );
+		Menu_AddItem( &s_ingame.menu, &s_ingame.setup );
+		Menu_AddItem( &s_ingame.menu, &s_ingame.leave );
+		return;
+	}
+#endif
+
 	//y = 96;
 	y = 88;
 	s_ingame.team.generic.type			= MTYPE_PTEXT;

@@ -315,6 +315,11 @@ void UI_MainMenu( void )
 		return;
 	}
 
+#ifdef NEONARENA_MOD
+	UI_NeonStartMenu();
+	return;
+#endif
+
 	s_main.menu.draw = Main_MenuDraw;
 	s_main.menu.fullscreen = qtrue;
 	s_main.menu.wrapAround = qtrue;

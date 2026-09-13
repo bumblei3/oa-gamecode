@@ -1459,6 +1459,24 @@ static void CG_DrawNeonLook(void) {
 		CG_DrawPic(0, 0, 640, 480, cgs.media.neonVignetteShader);
 	}
 #ifdef NEONARENA_MOD
+	{
+		char gbuf[16];
+		float ga;
+		trap_Cvar_VariableStringBuffer( "cg_neon_grid", gbuf, sizeof( gbuf ) );
+		ga = atof( gbuf );
+		if ( ga > 0.01f && cgs.media.neonGridShader ) {
+			vec4_t gc;
+			gc[0] = 0.12f;
+			gc[1] = 0.55f;
+			gc[2] = 0.70f;
+			gc[3] = ga;
+			trap_R_SetColor( gc );
+			CG_DrawPic( 0, 0, 640, 480, cgs.media.neonGridShader );
+			trap_R_SetColor( NULL );
+		}
+	}
+#endif
+#ifdef NEONARENA_MOD
 	if ( cg.snap ) {
 		if ( CG_GhostKit() && cg.snap->ps.powerups[PW_INVIS] > cg.time ) {
 			vec4_t cloak, edge;
@@ -1817,52 +1835,68 @@ static float CG_DrawNeonWave(float y) {
 				Com_sprintf( s, sizeof(s), "INFIL %i", energy );
 			}
 			CG_DrawSmallStringColor( 16, 424, s, gcol );
-			// Controller indicator (v0.80)
+			// Controller indicator (v0.80) — pip labels follow the pad when active
 			{
 				char ctrlBuf[8];
+				int joy, step;
+				const char *cloakPip, *empPip, *lockPip, *nukePip, *scanPip;
 				trap_Cvar_VariableStringBuffer( "ui_controller_active", ctrlBuf, sizeof(ctrlBuf) );
-				if ( atoi( ctrlBuf ) == 1 ) {
+				joy = atoi( ctrlBuf ) == 1;
+				if ( joy ) {
 					CG_DrawSmallStringColor( 100, 424, "[JOY]", warn );
+					cloakPip = "LB CLOAK";
+					empPip = "RB EMP";
+					lockPip = "X LOCK";
+					nukePip = "Y NUKE";
+					scanPip = "RS SCAN";
+					step = 96;
+				} else {
+					cloakPip = "J CLOAK";
+					empPip = "H EMP";
+					lockPip = "K LOCK";
+					nukePip = "N NUKE";
+					scanPip = "M SCAN";
+					step = 80;
 				}
-			}
 			px = 16;
 			if ( lo != 2 ) {
 				if ( cloakS > 0 ) {
-					Com_sprintf( pip, sizeof(pip), "J CLOAK %i", cloakS );
+					Com_sprintf( pip, sizeof(pip), "%s %i", cloakPip, cloakS );
 					CG_DrawSmallStringColor( px, 440, pip, cool );
 				} else {
-					CG_DrawSmallStringColor( px, 440, "J CLOAK", ready );
+					CG_DrawSmallStringColor( px, 440, cloakPip, ready );
 				}
-				px += 80;
+				px += step;
 			}
 			if ( empS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "H EMP %i", empS );
+				Com_sprintf( pip, sizeof(pip), "%s %i", empPip, empS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "H EMP", ready );
+				CG_DrawSmallStringColor( px, 440, empPip, ready );
 			}
-			px += 80;
+			px += step;
 			if ( lockS > 0 ) {
-				Com_sprintf( pip, sizeof(pip), "K LOCK %i", lockS );
+				Com_sprintf( pip, sizeof(pip), "%s %i", lockPip, lockS );
 				CG_DrawSmallStringColor( px, 440, pip, cool );
 			} else {
-				CG_DrawSmallStringColor( px, 440, "K LOCK", ready );
+				CG_DrawSmallStringColor( px, 440, lockPip, ready );
 			}
-			px += 80;
+			px += step;
 			if ( lo == 2 ) {
 				if ( nukeS > 0 ) {
-					Com_sprintf( pip, sizeof(pip), "N NUKE %i", nukeS );
+					Com_sprintf( pip, sizeof(pip), "%s %i", nukePip, nukeS );
 					CG_DrawSmallStringColor( px, 440, pip, cool );
 				} else {
-					CG_DrawSmallStringColor( px, 440, "N NUKE", ready );
+					CG_DrawSmallStringColor( px, 440, nukePip, ready );
 				}
-				px += 80;
+				px += step;
 				if ( multiS > 0 ) {
-					Com_sprintf( pip, sizeof(pip), "M SCAN %i", multiS );
+					Com_sprintf( pip, sizeof(pip), "%s %i", scanPip, multiS );
 					CG_DrawSmallStringColor( px, 440, pip, cool );
 				} else {
-					CG_DrawSmallStringColor( px, 440, "M SCAN", ready );
+					CG_DrawSmallStringColor( px, 440, scanPip, ready );
 				}
+			}
 			}
 			s[0] = 0;
 			if ( stCode == 1 ) {

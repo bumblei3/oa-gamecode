@@ -780,6 +780,12 @@ void			trap_SetCDKey( char *buf );
 qboolean               trap_VerifyCDKey( const char *key, const char *chksum); // bk001208 - RC4
 
 void			trap_SetPbClStatus( int status );
+int				trap_RealTime( qtime_t *qtime );
+
+//
+// ui_neonstart.c
+//
+void UI_NeonStartMenu( void );
 
 //
 // ui_addbots.c

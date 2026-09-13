@@ -131,6 +131,7 @@ static int GH_Id( gentity_t *ent ) {
 
 static const char *GH_LoadoutName( int lo );
 static void GH_SetLoadout( gentity_t *ent, int loadout );
+static void GH_PrintKitHint( gentity_t *ent );
 
 static void GH_Sound( gentity_t *ent, char *path ) {
 	if ( !ent ) {
@@ -247,9 +248,7 @@ void NW_GhostSpawn( gentity_t *ent ) {
 	ent->client->ps.stats[STAT_GHOST_CDS] = 0;
 	ent->client->ps.stats[STAT_GHOST_ST] = ( ent->client->pers.ghostLoadout << 16 );
 	G_Printf( "Ghost: %s joined the Ghost team (loadout %i)\n", ent->client->pers.netname, ent->client->pers.ghostLoadout );
-	if ( !( ent->r.svFlags & SVF_BOT ) ) {
-		trap_SendServerCommand( id, va( "cp \"GHOST: %s\\nL next kit\\n\"", GH_LoadoutName( ent->client->pers.ghostLoadout ) ) );
-	}
+	GH_PrintKitHint( ent );
 }
 
 void NW_GhostOnKill( gentity_t *attacker ) {
@@ -280,6 +279,31 @@ static const char *GH_LoadoutName( int lo ) {
 	return "INFILTRATOR";
 }
 
+static void GH_PrintKitHint( gentity_t *ent ) {
+	int id, lo;
+	const char *name;
+	const char *keys;
+	if ( !ent || !ent->client ) {
+		return;
+	}
+	id = GH_Id( ent );
+	if ( id < 0 || id >= MAX_CLIENTS ) {
+		return;
+	}
+	lo = ent->client->pers.ghostLoadout;
+	name = GH_LoadoutName( lo );
+	if ( lo == GH_LOADOUT_SPECTRE ) {
+		keys = "H emp  K lock  N nuke  M scan";
+	} else {
+		keys = "J cloak  H emp  K lock";
+	}
+	G_Printf( "Ghost: hint %s %s\n", name, keys );
+	if ( ent->r.svFlags & SVF_BOT ) {
+		return;
+	}
+	trap_SendServerCommand( id, va( "cp \"GHOST: %s\\n%s\\nL kit  RMB zoom\\n\"", name, keys ) );
+}
+
 static void GH_SetLoadout( gentity_t *ent, int loadout ) {
 	int id;
 	const char *name;
@@ -294,8 +318,8 @@ static void GH_SetLoadout( gentity_t *ent, int loadout ) {
 	trap_Cvar_Set( "g_ghost_loadout", va( "%i", loadout ) );
 	name = GH_LoadoutName( loadout );
 	G_Printf( "Ghost: loadout set to %i (%s)\n", loadout, name );
-	trap_SendServerCommand( id, va( "cp \"LOADOUT: %s\\n\"", name ) );
 	trap_SendServerCommand( id, va( "print \"Ghost loadout set to: %s  (L next kit)\\n\"", name ) );
+	GH_PrintKitHint( ent );
 }
 
 static int GH_SecLeft( int until ) {
@@ -1029,7 +1053,7 @@ void Cmd_GhostLoadout_f( gentity_t *ent ) {
 		name = GH_LoadoutName( ent->client->pers.ghostLoadout );
 		trap_SendServerCommand( id, va( "print \"Current Ghost loadout: %s\\n\"", name ) );
 		trap_SendServerCommand( id, "print \"Usage: loadout next | loadout <0|1|2>  (L cycles)\\n\"" );
-		trap_SendServerCommand( id, va( "cp \"GHOST: %s\\nL next kit\\n\"", name ) );
+		GH_PrintKitHint( ent );
 		return;
 	}
 	trap_Argv( 1, arg, sizeof( arg ) );

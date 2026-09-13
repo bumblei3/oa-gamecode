@@ -1011,6 +1011,13 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		return qtrue;
 	}
 
+#ifdef NEONARENA_MOD
+	if ( Q_strequal(cmd, "neonmenu") ) {
+		UI_NeonStartMenu();
+		return qtrue;
+	}
+#endif
+
 	if ( Q_strequal(cmd, "postgame") ) {
 		UI_SPPostgameMenu_f();
 		return qtrue;

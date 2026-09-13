@@ -3,6 +3,8 @@
 #include "g_neonwave.h"
 
 #ifdef NEONARENA_MOD
+#include "neon_daily_pool.h"
+#include "neon_maplook.h"
 
 #define NW_FIRST_WAVE_DELAY	5000	// ms after map start
 #define NW_WAVE_BREAK		12000	// ms between waves (perk shop)
@@ -323,18 +325,6 @@ static int nw_fxSeq;
 static int nw_dailyOffset;		// modifier pool rotation 0..(NW_MOD_POOL_SIZE-1)
 static int nw_dailyBossOffset;	// boss rotation offset 0..(NW_BOSS_COUNT-1)
 
-#define NW_DAILY_FNV_PRIME		16777619u
-#define NW_DAILY_FNV_OFFSET		2166136261u
-
-static unsigned int NW_DailyHash( const char *s ) {
-	unsigned int h = NW_DAILY_FNV_OFFSET;
-	while ( *s ) {
-		h ^= (unsigned char)*s++;
-		h *= NW_DAILY_FNV_PRIME;
-	}
-	return h;
-}
-
 static void NW_DailyInit( void ) {
 	char buf[16];
 	qtime_t tm;
@@ -367,22 +357,12 @@ static void NW_DailyInit( void ) {
 	nw_dailyOffset = forced % NW_MOD_POOL_SIZE;
 	nw_dailyBossOffset = ( forced / NW_MOD_POOL_SIZE ) % NW_BOSS_COUNT;
 	{
-		// Map pool — extend array to grow the daily rotation.
-		// Modulo uses sizeof so adding entries requires no other edits.
-		static const char *pool[] = {
-			"oa_shine",   // 0 — Shine (default, dark skybox, neon grid)
-			"oa_minia",   // 1 — Minia (compact, fast spawns)
-			"oa_rpg3dm2", // 2 — RPG 3DM2 (open sightlines)
-			"oa_bleed",   // 3 — Bleed (corridors, close combat)
-			"oa_node",    // 4 — Node (multi-level)
-			"oa_pulse",   // 5 — Pulse (wide arena)
-			"oa_desert",  // 6 — Desert (open, less bloom needed)
-			"oa_vortex"   // 7 — Vortex (vertical gameplay)
-		};
-		int map_count = sizeof( pool ) / sizeof( pool[0] );
-		int mi = ( forced / ( NW_MOD_POOL_SIZE * NW_BOSS_COUNT ) ) % map_count;
-		G_Printf( "NeonWave: DAILY MAP %s (pool index %i/%i)\n", pool[mi], mi, map_count );
-		trap_Cvar_Set( "ui_neonwave_dailymap", pool[mi] );
+		int mi = NW_DailyPoolIndex( forced );
+		G_Printf( "NeonWave: DAILY MAP %s (pool index %i/%i)\n", nw_daily_key[mi], mi, NW_DAILY_POOL_SIZE );
+		G_Printf( "NeonWave: DAILY BSP %s\n", nw_daily_bsp[mi] );
+		G_Printf( "NeonWave: DAILY ARENA %s\n", nw_daily_arena[mi][0] ? nw_daily_arena[mi] : "-" );
+		trap_Cvar_Set( "ui_neonwave_dailymap", nw_daily_key[mi] );
+		trap_Cvar_Set( "ui_neonwave_dailybsp", nw_daily_bsp[mi] );
 	}
 	// mirror for the cgame HUD (DAILY badge on the wave title)
 	trap_Cvar_Set( "ui_neonwave_daily", "1" );
@@ -401,6 +381,23 @@ static int nw_bossEntityCache = -1;	// Cached boss entity index (-1 = invalid)
 
 static void NW_InvalidateBossCache( void ) {
 	nw_bossEntityCache = -1;
+}
+
+static void NW_ApplyMapLook( void ) {
+	char map[MAX_QPATH];
+	char buf[8];
+	const nwMapLook_t *look;
+
+	trap_Cvar_VariableStringBuffer( "mapname", map, sizeof( map ) );
+	look = NW_MapLook( map );
+	Com_sprintf( buf, sizeof( buf ), "%i", look->overbright );
+	trap_Cvar_Set( "r_mapoverbrightbits", buf );
+	trap_Cvar_Set( "r_gamma", look->gamma );
+	trap_Cvar_Set( "r_bloom_intensity", look->bloom_i );
+	trap_Cvar_Set( "r_bloom_threshold", look->bloom_t );
+	trap_Cvar_Set( "cg_neon_grid", look->grid );
+	G_Printf( "NeonArena: look %s overbright=%i bloom=%s grid=%s\n",
+		look->bsp, look->overbright, look->bloom_i, look->grid );
 }
 
 void NeonWave_Reset( void ) {
@@ -447,6 +444,7 @@ void NeonWave_Reset( void ) {
 			G_Printf( "NeonWave: dynamic difficulty forced -> %s\n", NW_DifficultyName( nw_difficulty ) );
 		}
 	}
+	NW_ApplyMapLook();
 	nw_started = qfalse;
 	nw_botCounter = 0;
 	nw_inBreak = qfalse;
