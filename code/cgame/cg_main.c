@@ -22,9 +22,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
-#ifdef NEONARENA_MOD
-#include "../game/neon_maplook.h"
-#endif
 
 #ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
@@ -2386,6 +2383,11 @@ void CG_AssetCache(void) {
 #endif
 
 int wideAdjustX; // leilei - dirty widescreen hack
+
+#ifdef NEONARENA_MOD
+/* After vmMain: q3asm requires vmMain at instruction 0. */
+#include "../game/neon_maplook.h"
+#endif
 
 /*
 =================
