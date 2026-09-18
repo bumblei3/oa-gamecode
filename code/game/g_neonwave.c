@@ -385,11 +385,13 @@ static void NW_InvalidateBossCache( void ) {
 
 static void NW_ApplyMapLook( void ) {
 	char map[MAX_QPATH];
+	char arena[64];
 	char buf[8];
 	const nwMapLook_t *look;
 
 	trap_Cvar_VariableStringBuffer( "mapname", map, sizeof( map ) );
-	look = NW_MapLook( map );
+	trap_Cvar_VariableStringBuffer( "g_neonwave_arena", arena, sizeof( arena ) );
+	look = NW_MapLookArena( arena, map );
 	Com_sprintf( buf, sizeof( buf ), "%i", look->overbright );
 	trap_Cvar_Set( "r_mapoverbrightbits", buf );
 	trap_Cvar_Set( "r_gamma", look->gamma );
@@ -397,7 +399,7 @@ static void NW_ApplyMapLook( void ) {
 	trap_Cvar_Set( "r_bloom_threshold", look->bloom_t );
 	trap_Cvar_Set( "cg_neon_grid", look->grid );
 	G_Printf( "NeonArena: look %s overbright=%i bloom=%s grid=%s\n",
-		look->bsp, look->overbright, look->bloom_i, look->grid );
+		look->key, look->overbright, look->bloom_i, look->grid );
 }
 
 void NeonWave_Reset( void ) {

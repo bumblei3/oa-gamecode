@@ -1466,9 +1466,13 @@ static void CG_DrawNeonLook(void) {
 		ga = atof( gbuf );
 		if ( ga > 0.01f && cgs.media.neonGridShader ) {
 			vec4_t gc;
-			gc[0] = 0.12f;
-			gc[1] = 0.55f;
-			gc[2] = 0.70f;
+			char cbuf[16];
+			trap_Cvar_VariableStringBuffer( "cg_neon_grid_r", cbuf, sizeof( cbuf ) );
+			gc[0] = cbuf[0] ? atof( cbuf ) : 0.12f;
+			trap_Cvar_VariableStringBuffer( "cg_neon_grid_g", cbuf, sizeof( cbuf ) );
+			gc[1] = cbuf[0] ? atof( cbuf ) : 0.55f;
+			trap_Cvar_VariableStringBuffer( "cg_neon_grid_b", cbuf, sizeof( cbuf ) );
+			gc[2] = cbuf[0] ? atof( cbuf ) : 0.70f;
 			gc[3] = ga;
 			trap_R_SetColor( gc );
 			CG_DrawPic( 0, 0, 640, 480, cgs.media.neonGridShader );

@@ -234,6 +234,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_updateavail", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_motd", "", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_ghost", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
+	{ NULL, "g_neonwave_arena", "", 0, 0, qtrue },
 	{ NULL, "g_neonwave_replaytest", "0", CVAR_ARCHIVE, 0, qtrue },
 
 	{ NULL, "g_neonwave_shieldactive", "0", CVAR_ARCHIVE, 0, qtrue },
