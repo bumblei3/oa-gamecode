@@ -940,6 +940,8 @@ void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damag
 qboolean NeonWave_BuyOffer( gentity_t *ent, int slot );
 void NeonWave_PerkFx( const char *kind );
 qboolean NW_GhostActive( void );
+void NW_GhostReset( void );
+void NW_GhostAnnounceKit( void );
 void NW_GhostSpawn( gentity_t *ent );
 void NW_GhostFrame( void );
 void NW_GhostOnKill( gentity_t *attacker );

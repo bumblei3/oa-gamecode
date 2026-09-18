@@ -1436,7 +1436,6 @@ float CG_NeonDashFovKick(void) {
 }
 
 static void CG_DrawNeonLook(void) {
-	vec4_t dim = {0.00f, 0.02f, 0.05f, 0.20f};
 	int bossHp = 0, bossMax = 0;
 
 	CG_NeonPerkFxPulse();
@@ -1453,33 +1452,6 @@ static void CG_DrawNeonLook(void) {
 			CG_FillRect(0, 0, 640, 480, mag);
 		}
 	}
-
-	CG_FillRect(0, 0, 640, 480, dim);
-	if (cgs.media.neonVignetteShader) {
-		CG_DrawPic(0, 0, 640, 480, cgs.media.neonVignetteShader);
-	}
-#ifdef NEONARENA_MOD
-	{
-		char gbuf[16];
-		float ga;
-		trap_Cvar_VariableStringBuffer( "cg_neon_grid", gbuf, sizeof( gbuf ) );
-		ga = atof( gbuf );
-		if ( ga > 0.01f && cgs.media.neonGridShader ) {
-			vec4_t gc;
-			char cbuf[16];
-			trap_Cvar_VariableStringBuffer( "cg_neon_grid_r", cbuf, sizeof( cbuf ) );
-			gc[0] = cbuf[0] ? atof( cbuf ) : 0.12f;
-			trap_Cvar_VariableStringBuffer( "cg_neon_grid_g", cbuf, sizeof( cbuf ) );
-			gc[1] = cbuf[0] ? atof( cbuf ) : 0.55f;
-			trap_Cvar_VariableStringBuffer( "cg_neon_grid_b", cbuf, sizeof( cbuf ) );
-			gc[2] = cbuf[0] ? atof( cbuf ) : 0.70f;
-			gc[3] = ga;
-			trap_R_SetColor( gc );
-			CG_DrawPic( 0, 0, 640, 480, cgs.media.neonGridShader );
-			trap_R_SetColor( NULL );
-		}
-	}
-#endif
 #ifdef NEONARENA_MOD
 	if ( cg.snap ) {
 		if ( CG_GhostKit() && cg.snap->ps.powerups[PW_INVIS] > cg.time ) {
@@ -1555,24 +1527,23 @@ static void CG_DrawNeonPerkCard(int x, int y, int cw, int ch, int fkey,
 	if (cgs.media.neonBarShader) {
 		CG_DrawPic(x - 4, y - 4, cw + 8, ch + 8, cgs.media.neonBarShader);
 	}
-	Com_sprintf(s, sizeof(s), "F%i", fkey);
-	w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
-	CG_DrawSmallStringColor(x + cw/2 - w/2, y + 4, s, dim);
+	Com_sprintf(s, sizeof(s), "[ %i ]", fkey);
+	w = CG_DrawStrlen(s) * BIGCHAR_WIDTH;
+	CG_DrawBigStringColor(x + cw/2 - w/2, y + 2, s, title);
 	if (empty) {
 		Com_sprintf(s, sizeof(s), "TAKEN");
 	} else {
 		Com_sprintf(s, sizeof(s), "%s", name);
 	}
 	w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
-	CG_DrawSmallStringColor(x + cw/2 - w/2, y + 20, s, title);
+	CG_DrawSmallStringColor(x + cw/2 - w/2, y + 28, s, title);
 	if (!empty) {
 		const char *blurb = CG_NeonPerkBlurb(name);
 		w = CG_DrawStrlen(blurb) * SMALLCHAR_WIDTH;
 		if (w > cw - 8) {
-			/* tiny screens: still draw, left-aligned inside the card */
-			CG_DrawSmallStringColor(x + 4, y + 40, blurb, dim);
+			CG_DrawSmallStringColor(x + 4, y + 46, blurb, dim);
 		} else {
-			CG_DrawSmallStringColor(x + cw/2 - w/2, y + 40, blurb, dim);
+			CG_DrawSmallStringColor(x + cw/2 - w/2, y + 46, blurb, dim);
 		}
 	}
 }
@@ -2009,7 +1980,7 @@ static float CG_DrawNeonWave(float y) {
 		static int lastPicked = 0;
 		static int pickFlashUntil = 0;
 		int picked, i, cardY;
-		const int cw = 184, ch = 64, gap = 12;
+		const int cw = 184, ch = 72, gap = 12;
 		const int rowW = cw * 3 + gap * 2;
 		const int x0 = (640 - rowW) / 2;
 		char *names[3];
@@ -2058,7 +2029,11 @@ static float CG_DrawNeonWave(float y) {
 					CG_DrawNeonPerkCard(x0 + i * (cw + gap), cardY, cw, ch,
 						i + 1, names[i], flash);
 				}
-				y += ch + 10;
+				y += ch + 4;
+				Com_sprintf(s, sizeof(s), "PRESS  1 / 2 / 3");
+				w = CG_DrawStrlen(s) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(320 - w/2, y, s, gold);
+				y += SMALLCHAR_HEIGHT + 8;
 			}
 		}
 		trap_Cvar_VariableStringBuffer("ui_neonwave_owned", owned, sizeof(owned));

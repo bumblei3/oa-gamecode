@@ -417,6 +417,7 @@ void NeonWave_Reset( void ) {
 	nw_multikillTime = 0;
 	nw_untouchableWave = qtrue;
 	nw_difficulty = 0;
+	NW_GhostReset();
 	nw_lastSeenDeaths = -1;
 	nw_synergyIdx = -1;
 	nw_ptsMul = 1;
@@ -2168,6 +2169,14 @@ void NeonWave_StartWave( int num ) {
 		G_Printf( "NeonWave: HARDCORE banner\n" );
 		trap_SendServerCommand( -1, va( "cp \"HARDCORE\n\"" ) );
 	}
+	/* Ghost is sniper-ambush: waves 1-4 used to spawn n+1 rail-rushers
+	   before cloak/detector exist. Count = n so a run can reach wave 8. */
+	if ( NW_GhostActive() && !nw_hardcore && num >= 1 && num < 5 ) {
+		botCount = num;
+		if ( botCount < 1 ) {
+			botCount = 1;
+		}
+	}
 	G_Printf( "NeonWave: starting wave %i (%i bots, skill %i)%s%s%s%s\n", num, botCount, skill,
 		num >= NW_BOSS_WAVE ? " + BOSS" : "",
 		nw_modifier != NW_MOD_NONE ? va( " [%s]", NW_ModifierName( nw_modifier ) ) : "",
@@ -2188,6 +2197,7 @@ void NeonWave_StartWave( int num ) {
 	NW_ApplyDroneScaling();
 	if ( NW_GhostActive() ) {
 		G_Printf( "NeonWave: GHOST kit active (wave %i)\n", num );
+		NW_GhostAnnounceKit();
 	}
 	if ( NW_GhostActive() && num >= 8 ) {
 		int nDet, d, detSkill;

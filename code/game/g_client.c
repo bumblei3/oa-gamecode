@@ -1865,7 +1865,7 @@ void ClientSpawn(gentity_t *ent) {
 	{
 #ifdef NEONARENA_MOD
 		// NeonWave: railgun + lightning, or Ghost kit (rail only, no gauntlet)
-		if ( NW_GhostActive() ) {
+		if ( NW_GhostActive() && !( ent->r.svFlags & SVF_BOT ) ) {
 			client->ps.stats[STAT_WEAPONS] = ( 1 << WP_RAILGUN );
 			client->ps.ammo[WP_RAILGUN] = 30;
 			client->ps.weapon = WP_RAILGUN;

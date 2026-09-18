@@ -22,28 +22,28 @@ typedef struct {
 } nwMapLook_t;
 
 static const nwMapLook_t nw_map_look[] = {
-	{ "oa_shine",		1, "1.40", "0.50", "0.60", "0.18", NW_GRID_CYAN },
-	{ "oa_minia",		1, "1.40", "0.48", "0.62", "0.16", NW_GRID_CYAN },
-	{ "oa_rpg3dm2",		1, "1.40", "0.50", "0.60", "0.16", NW_GRID_CYAN },
-	{ "slimefac",		1, "1.45", "0.55", "0.55", "0.32", NW_GRID_BLOOD },
-	{ "oa_dm1",		1, "1.42", "0.52", "0.58", "0.30", NW_GRID_CYAN },
-	{ "oa_dm3",		0, "1.25", "0.40", "0.70", "0.35", NW_GRID_IRON },
-	{ "islanddm",		0, "1.20", "0.35", "0.72", "0.38", NW_GRID_CYAN },
-	{ "oa_dm6",		1, "1.40", "0.50", "0.60", "0.28", NW_GRID_CYAN },
-	{ "suspended",		1, "1.38", "0.48", "0.62", "0.30", NW_GRID_CYAN },
-	{ "am_underworks",	1, "1.45", "0.55", "0.55", "0.30", NW_GRID_CYAN },
-	{ "hydronex",		1, "1.42", "0.52", "0.58", "0.28", NW_GRID_CYAN },
-	{ "am_galmevish",	1, "1.40", "0.48", "0.62", "0.26", NW_GRID_MOSS },
-	{ "oa_thor",		1, "1.40", "0.50", "0.60", "0.28", NW_GRID_CYAN }
+	{ "oa_shine",		1, "1.40", "0.50", "0.60", "0", NW_GRID_CYAN },
+	{ "oa_minia",		1, "1.40", "0.48", "0.62", "0", NW_GRID_CYAN },
+	{ "oa_rpg3dm2",		1, "1.40", "0.50", "0.60", "0", NW_GRID_CYAN },
+	{ "slimefac",		1, "1.45", "0.55", "0.55", "0", NW_GRID_BLOOD },
+	{ "oa_dm1",		1, "1.42", "0.52", "0.58", "0", NW_GRID_CYAN },
+	{ "oa_dm3",		0, "1.25", "0.40", "0.70", "0", NW_GRID_IRON },
+	{ "islanddm",		0, "1.20", "0.35", "0.72", "0", NW_GRID_CYAN },
+	{ "oa_dm6",		1, "1.40", "0.50", "0.60", "0", NW_GRID_CYAN },
+	{ "suspended",		1, "1.38", "0.48", "0.62", "0", NW_GRID_CYAN },
+	{ "am_underworks",	1, "1.45", "0.55", "0.55", "0", NW_GRID_CYAN },
+	{ "hydronex",		1, "1.42", "0.52", "0.58", "0", NW_GRID_CYAN },
+	{ "am_galmevish",	1, "1.40", "0.48", "0.62", "0", NW_GRID_MOSS },
+	{ "oa_thor",		1, "1.40", "0.50", "0.60", "0", NW_GRID_CYAN }
 };
 
 /* Same BSP can host two arenas (oa_minia = Ironman + Frostbite). Stem wins. */
 static const nwMapLook_t nw_arena_look[] = {
-	{ "frostbite",		1, "1.22", "0.38", "0.72", "0.40", NW_GRID_ICE },
-	{ "ironman",		0, "1.10", "0.28", "0.80", "0.20", NW_GRID_IRON },
-	{ "ghost_protocol",	1, "1.45", "0.58", "0.50", "0.26", NW_GRID_GHOST },
-	{ "overgrowth",		1, "1.32", "0.44", "0.66", "0.24", NW_GRID_MOSS },
-	{ "bleed_chamber",	1, "1.50", "0.60", "0.48", "0.38", NW_GRID_BLOOD }
+	{ "frostbite",		1, "1.22", "0.38", "0.72", "0", NW_GRID_ICE },
+	{ "ironman",		0, "1.10", "0.28", "0.80", "0", NW_GRID_IRON },
+	{ "ghost_protocol",	1, "1.45", "0.58", "0.50", "0", NW_GRID_GHOST },
+	{ "overgrowth",		1, "1.32", "0.44", "0.66", "0", NW_GRID_MOSS },
+	{ "bleed_chamber",	1, "1.50", "0.60", "0.48", "0", NW_GRID_BLOOD }
 };
 
 #define NW_MAP_LOOK_COUNT ( (int)( sizeof( nw_map_look ) / sizeof( nw_map_look[0] ) ) )

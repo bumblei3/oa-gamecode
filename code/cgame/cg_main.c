@@ -327,7 +327,7 @@ static cvarTable_t cvarTable[] = {// bk001129
 	{ &cg_viewnudge, "cg_viewnudge", "0", CVAR_ARCHIVE},
 	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE},
 #ifdef NEONARENA_MOD
-	{ &cg_neon_grid, "cg_neon_grid", "0.22", CVAR_ARCHIVE},
+	{ &cg_neon_grid, "cg_neon_grid", "0", CVAR_ARCHIVE},
 #endif
 	{ &cg_gibs, "cg_gibs", "1", CVAR_ARCHIVE},
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE},
@@ -2564,6 +2564,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 	if (CG_GhostKit()) {
 		trap_SendConsoleCommand("exec ghost-binds.cfg\n");
 	}
+	trap_SendConsoleCommand("exec upgrade-binds.cfg\n");
 	CG_ApplyMapLook();
 #endif
 }

@@ -20,6 +20,7 @@
 static int gh_cvar_start;
 static int gh_cvar_max;
 static int gh_cvar_regen;
+static qboolean gh_announced;
 
 static void GH_ReadCvars( void ) {
 	char buf[8];
@@ -197,6 +198,41 @@ void NW_GhostBreakCloak( gentity_t *ent ) {
 	}
 }
 
+void NW_GhostReset( void ) {
+	gh_announced = qfalse;
+}
+
+void NW_GhostAnnounceKit( void ) {
+	char buf[8];
+	int lo, energy;
+
+	if ( !NW_GhostActive() || gh_announced ) {
+		return;
+	}
+	GH_ReadCvars();
+	trap_Cvar_VariableStringBuffer( "g_ghost_loadout", buf, sizeof( buf ) );
+	lo = atoi( buf );
+	if ( lo < 0 || lo >= GH_LOADOUT_COUNT ) {
+		lo = 0;
+	}
+	switch ( lo ) {
+		case GH_LOADOUT_INFILTRATOR: energy = 80; break;
+		case GH_LOADOUT_SABOTEUR: energy = 70; break;
+		case GH_LOADOUT_SPECTRE: energy = 90; break;
+		default: energy = gh_cvar_start; break;
+	}
+	G_Printf( "Ghost: kit ENERGY=%i (loadout %i)\n", energy, lo );
+	G_Printf( "Ghost: kit joined the Ghost team (loadout %i)\n", lo );
+	if ( lo == GH_LOADOUT_SPECTRE ) {
+		G_Printf( "Ghost: hint SPECTRE H emp  K lock  N nuke  M scan\n" );
+	} else if ( lo == GH_LOADOUT_SABOTEUR ) {
+		G_Printf( "Ghost: hint SABOTEUR J cloak  H emp  K lock\n" );
+	} else {
+		G_Printf( "Ghost: hint INFILTRATOR J cloak  H emp  K lock\n" );
+	}
+	gh_announced = qtrue;
+}
+
 void NW_GhostSpawn( gentity_t *ent ) {
 	int id;
 	char buf[8];
@@ -204,6 +240,9 @@ void NW_GhostSpawn( gentity_t *ent ) {
 		return;
 	}
 	if ( !NW_GhostActive() ) {
+		return;
+	}
+	if ( ent->r.svFlags & SVF_BOT ) {
 		return;
 	}
 	GH_ReadCvars();
