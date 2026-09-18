@@ -2297,6 +2297,7 @@ Q3CGOBJ_ = \
   $(B)/$(BASEGAME)/cgame/cg_challenges.o \
   $(B)/$(BASEGAME)/cgame/cg_consolecmds.o \
   $(B)/$(BASEGAME)/cgame/cg_draw.o \
+  $(B)/$(BASEGAME)/cgame/cg_maplook.o \
   $(B)/$(BASEGAME)/cgame/cg_drawtools.o \
   $(B)/$(BASEGAME)/cgame/cg_effects.o \
   $(B)/$(BASEGAME)/cgame/cg_ents.o \
@@ -2342,6 +2343,7 @@ MPCGOBJ_ = \
   $(B)/$(MISSIONPACK)/cgame/cg_consolecmds.o \
   $(B)/$(MISSIONPACK)/cgame/cg_newdraw.o \
   $(B)/$(MISSIONPACK)/cgame/cg_draw.o \
+  $(B)/$(MISSIONPACK)/cgame/cg_maplook.o \
   $(B)/$(MISSIONPACK)/cgame/cg_drawtools.o \
   $(B)/$(MISSIONPACK)/cgame/cg_effects.o \
   $(B)/$(MISSIONPACK)/cgame/cg_ents.o \

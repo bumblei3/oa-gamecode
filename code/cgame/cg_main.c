@@ -2384,11 +2384,6 @@ void CG_AssetCache(void) {
 
 int wideAdjustX; // leilei - dirty widescreen hack
 
-#ifdef NEONARENA_MOD
-/* After vmMain: q3asm requires vmMain at instruction 0. */
-#include "../game/neon_maplook.h"
-#endif
-
 /*
 =================
 CG_Init
@@ -2569,25 +2564,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 	if (CG_GhostKit()) {
 		trap_SendConsoleCommand("exec ghost-binds.cfg\n");
 	}
-	{
-		const nwMapLook_t *look;
-		char arena[64];
-		trap_Cvar_VariableStringBuffer( "g_neonwave_arena", arena, sizeof( arena ) );
-		look = NW_MapLookArena( arena, cgs.mapname );
-		trap_Cvar_Set( "r_gamma", look->gamma );
-		trap_Cvar_Set( "r_bloom_intensity", look->bloom_i );
-		trap_Cvar_Set( "r_bloom_threshold", look->bloom_t );
-		trap_Cvar_Set( "cg_neon_grid", look->grid );
-		{
-			char col[16];
-			Com_sprintf( col, sizeof( col ), "%0.2f", look->gr );
-			trap_Cvar_Set( "cg_neon_grid_r", col );
-			Com_sprintf( col, sizeof( col ), "%0.2f", look->gg );
-			trap_Cvar_Set( "cg_neon_grid_g", col );
-			Com_sprintf( col, sizeof( col ), "%0.2f", look->gb );
-			trap_Cvar_Set( "cg_neon_grid_b", col );
-		}
-	}
+	CG_ApplyMapLook();
 #endif
 }
 

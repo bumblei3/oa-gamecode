@@ -1,5 +1,5 @@
 // Per-BSP Neon look, with optional arena-stem overrides.
-// Included by game, cgame, and q3_ui.
+// Included by game, cgame (cg_maplook.c only — never cg_main.c), and q3_ui.
 // overbright is latched (set before map load). bloom/gamma/grid apply live.
 #ifndef NEON_MAPLOOK_H
 #define NEON_MAPLOOK_H

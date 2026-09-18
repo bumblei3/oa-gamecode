@@ -2041,6 +2041,7 @@ float CG_NeonDashFovKick( void );
 void CG_NeonAchievement( const char *name );
 qboolean CG_GhostKit( void );
 void CG_NeonHitConfirm( qboolean isKill );
+void CG_ApplyMapLook( void );
 #endif
 
 #define	LFX_SMOKEPUFF		1;
