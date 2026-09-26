@@ -215,6 +215,14 @@ void NW_GhostAnnounceKit( void ) {
 	if ( lo < 0 || lo >= GH_LOADOUT_COUNT ) {
 		lo = 0;
 	}
+	/* Headless runs never reach NW_GhostSpawn, so the cycle has to land here. */
+	trap_Cvar_VariableStringBuffer( "g_ghost_cycletest", buf, sizeof( buf ) );
+	if ( atoi( buf ) ) {
+		lo = ( lo + 1 ) % GH_LOADOUT_COUNT;
+		trap_Cvar_Set( "g_ghost_cycletest", "0" );
+		trap_Cvar_Set( "g_ghost_loadout", va( "%i", lo ) );
+		G_Printf( "Ghost: loadout set to %i (%s)\n", lo, GH_LoadoutName( lo ) );
+	}
 	switch ( lo ) {
 		case GH_LOADOUT_INFILTRATOR: energy = 80; break;
 		case GH_LOADOUT_SABOTEUR: energy = 70; break;

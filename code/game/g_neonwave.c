@@ -599,6 +599,10 @@ static qboolean NW_CoopWaveClear( int drones ) {
 	return ( alive > 0 );
 }
 
+// Client slot held dead so the next wave can revive the headless stand-in.
+// Dead bots are dropped once respawnTime passes (g_active.c).
+static int nw_coopStandin = -1;
+
 // g_neonwave_selfkill 1 → kill the human player each frame (test coop respawn)
 static void NW_SelfKillHuman( void ) {
 	int i;
@@ -619,6 +623,14 @@ static void NW_SelfKillHuman( void ) {
 			if ( ent->health <= 0 ) continue;
 			ent->health = 0;
 			ent->client->ps.stats[STAT_HEALTH] = 0;
+			if ( ent->r.svFlags & SVF_BOT ) {
+				if ( nw_coopStandin >= 0 && nw_coopStandin != i
+						&& g_entities[nw_coopStandin].client ) {
+					g_entities[nw_coopStandin].client->respawnTime = level.time - 1;
+				}
+				ent->client->respawnTime = level.time + 600000;
+				nw_coopStandin = i;
+			}
 		}
 	}
 }
@@ -653,6 +665,10 @@ static void NW_CoopRespawnDead( void ) {
 			}
 		}
 		trap_LinkEntity( ent );
+		if ( i == nw_coopStandin ) {
+			ent->client->respawnTime = level.time;
+			nw_coopStandin = -1;
+		}
 		G_Printf( "NeonWave: COOP RESPAWN revived dead human\n" );
 	}
 }
