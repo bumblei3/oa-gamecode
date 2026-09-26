@@ -2479,7 +2479,13 @@ static void NW_LoadAchievements( void ) {
 
 static void NW_SaveAchievements( void ) {
 	fileHandle_t f;
-	int len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_WRITE );
+	int len;
+	/* Headless tests earn the log line. They must not write the player profile. */
+	if ( NW_Headless() ) {
+		G_Printf( "NeonWave: achievement save skipped (autostart)\n" );
+		return;
+	}
+	len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_WRITE );
 	if ( len < 0 || !f ) {
 		G_Printf( "NeonWave: WARNING cannot write " NW_ACHIEVEMENTS_FILE "\n" );
 		return;
