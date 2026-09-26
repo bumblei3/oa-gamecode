@@ -1418,6 +1418,10 @@ static void NW_RollOffers( int clientID ) {
 		nw_offer[clientID][2] = c;
 	} else {
 		for ( i = 1; i < NW_PERK_COUNT; i++ ) {
+			/* Rail-only Ghost: CHAIN is lightning and a dead card. perkforce still overrides. */
+			if ( NW_GhostActive() && i == NW_PERK_CHAIN ) {
+				continue;
+			}
 			if ( nw_perk[clientID][i] < NW_PerkCap( i ) ) {
 				eligible[n++] = i;
 			}
@@ -2175,6 +2179,19 @@ void NeonWave_StartWave( int num ) {
 		botCount = num;
 		if ( botCount < 1 ) {
 			botCount = 1;
+		}
+	}
+	/* After swarm/coop/scale. 0 disables. Default 8 keeps addbot off the reliable buffer. */
+	{
+		char capBuf[8];
+		int cap = 8;
+		trap_Cvar_VariableStringBuffer( "g_neonwave_drone_cap", capBuf, sizeof( capBuf ) );
+		if ( capBuf[0] ) {
+			cap = atoi( capBuf );
+		}
+		if ( cap > 0 && botCount > cap ) {
+			G_Printf( "NeonWave: drone cap %i: %i -> %i\n", cap, botCount, cap );
+			botCount = cap;
 		}
 	}
 	G_Printf( "NeonWave: starting wave %i (%i bots, skill %i)%s%s%s%s\n", num, botCount, skill,

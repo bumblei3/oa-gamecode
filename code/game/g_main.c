@@ -270,6 +270,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_neonwave_drone_hp_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_drone_damage_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_drone_count_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
+	{ NULL, "g_neonwave_drone_cap", "8", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_drone_speed_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_neonwave_gravity_scale", "1.0", CVAR_ARCHIVE, 0, qtrue },
 
