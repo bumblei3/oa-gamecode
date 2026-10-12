@@ -110,4 +110,39 @@ int NW_RunDeaths( void );
 qboolean NW_Headless( void );
 void NW_InvalidateCache( void );
 
+// ---- modifiers module (g_nw_modifiers.c) ----
+#define NW_MOD_NONE		0
+#define NW_MOD_GLASS		1	// all drones die to one hit, but +2 skill aggression
+#define NW_MOD_SWARM		2	// double drone count, skill capped lower
+#define NW_MOD_LOWGRAV		3	// g_gravity halved for the wave
+#define NW_MOD_DOUBLEPTS	4	// wave clear grants x2 upgrade points
+#define NW_MOD_TIMEWARP		5	// player speed scaled (g_speed) for the wave
+#define NW_MOD_VAMPIRE		6	// each kill heals the player a few HP (lifesteal)
+#define NW_MOD_FRENZY		7	// g_quadfactor boosted -> shots hit much harder
+#define NW_MOD_OVERSHIELD	8	// player granted bonus armor at wave start
+#define NW_MOD_MIRROR		9	// bots' damage is partially reflected back on hit
+#define NW_MOD_REGEN		10	// player regenerates HP at the start of each wave
+#define NW_MOD_SURGE		11	// tougher drones but wave clear grants x3 upgrade points
+#define NW_MOD_FROST		12	// slowed player (g_speed), frosty drones
+#define NW_MOD_CHAOS		13	// chaotic spawns: random skill + spawn delay
+#define NW_MOD_MIMIC		14	// drones copy a random upgrade value from a random human
+#define NW_MOD_SHIELD		15	// v0.70: player gets temporary invulnerability at wave start
+#define NW_MOD_POOL_SIZE	16
+
+extern int nw_modifier;		// active modifier slot 1
+extern int nw_modifier2;	// active modifier slot 2 (synergy, wave >= 8)
+extern int nw_synergyIdx;	// index into nwSynergies, -1 = none
+extern int nw_ptsMul;		// wave-clear point multiplier
+extern int nw_dailyOffset;	// modifier pool rotation 0..(NW_MOD_POOL_SIZE-1)
+extern int nw_modifiersSeen;	// bitmask of modifiers encountered this run
+
+const char *NW_ModifierName( int mod );
+qboolean NW_ModActive( int mod );
+const char *NW_SynergyName( int idx );
+void NW_PickModifier( int num );
+
+// perk state shared with the modifiers module (SKIP check in NW_PickModifier)
+extern int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];
+void NW_MirrorPerks( int clientID );
+
 #endif // G_NW_INTERNAL_H
