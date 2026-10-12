@@ -145,4 +145,33 @@ void NW_PickModifier( int num );
 extern int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];
 void NW_MirrorPerks( int clientID );
 
+// ---- bosses module (g_nw_bosses.c) ----
+#define NW_BOSS_SNIPER		1	// railgun sniper (classic)
+#define NW_BOSS_TANK		2	// slow, huge HP, chaingun-style MG spam
+#define NW_BOSS_SWARM		3	// spawns mini-drones during the wave
+#define NW_BOSS_GLASS		4	// glass cannon: fast, 2x HP, railgun
+#define NW_BOSS_WARDEN		5	// teleport-strikes the player's zone + brief armor phase
+#define NW_BOSS_BERSERKER	6	// slow, huge HP, MG spam — enrages below 30% HP
+#define NW_BOSS_TELEPORTER	7	// teleports away on hit, evasive boss
+#define NW_BOSS_HEALER		8	// heals nearby bots, low HP, no direct attack
+#define NW_BOSS_SHIELDER	9	// deploys energy shield vs projectiles
+#define NW_BOSS_SNIPELITE	10	// fast sniper, double rail + cloak
+#define NW_BOSS_DEMOLISHER	11	// rocket spammer, splash damage
+#define NW_BOSS_CHRONOMANCER	12	// time manipulation, teleport, slow-mo
+#define NW_BOSS_VOIDWALKER	13	// phase-shifting, invulnerability, enrage
+
+extern int nw_bossType;		// current boss type (NW_BOSS_*)
+extern int nw_bossPhase;	// boss phase (1 normal, 2 enraged)
+extern int nw_difficulty;	// dynamic difficulty tier -2..1 (0=normal)
+
+const char *NW_BossName( int type );
+void NW_SpawnBoss( void );
+void NW_BossMechanicsFrame( int *lastMini, int bots );
+void NW_InvalidateBossCache( void );
+void NW_SetDailyBossOffset( int off );
+
+// shared helpers from g_neonwave.c used by the bosses module
+void NW_SpawnBot( int skill );
+void NW_SpawnBotsBatch( int skill, int count );
+
 #endif // G_NW_INTERNAL_H
