@@ -55,40 +55,11 @@
 #define NW_SHIELDER_RATE 10  // 10% chance per bot after wave 10
 #define NW_ELITE_RATE     5  // 5% chance per bot after wave 12
 
-// achievements (per-run badges, mirrored into run-stats JSON)
-#define NW_ACH_FIRST_VICTORY	0	// cleared wave 20 (full run)
-#define NW_ACH_SURVIVOR		1	// reached wave 15
-#define NW_ACH_SHARPSHOOTER	2	// best combo >= 8
-#define NW_ACH_STREAKER		3	// best combo >= 5
-#define NW_ACH_FLAWLESS		4	// victory with 0 deaths
-#define NW_ACH_COMBOMASTER	5	// best combo >= 12
-#define NW_ACH_SPEEDRUNNER	6	// victory under time target (300s)
-#define NW_ACH_HARDCORE		7	// victory in hardcore mode
-// v0.60: 17 new achievements (total 25)
-#define NW_ACH_KILL_100		8	// kill 100 bots total
-#define NW_ACH_KILL_1000	9	// kill 1000 bots total
-#define NW_ACH_WAVE_5		10	// survive to wave 5
-#define NW_ACH_WAVE_10		11	// survive to wave 10
-#define NW_ACH_WAVE_30		12	// survive to wave 30
-#define NW_ACH_WAVE_50		13	// survive to wave 50
-#define NW_ACH_PERFECT_WAVE	14	// clear wave without damage
-#define NW_ACH_MULTIKILL_3	15	// 3 kills in 1 second
-#define NW_ACH_MULTIKILL_5	16	// 5 kills in 1 second
-#define NW_ACH_RAILGUN_MASTER	17	// 100 railgun kills
-#define NW_ACH_LIGHTNING_MASTER	18	// 100 lightning kills
-#define NW_ACH_PLASMA_MASTER	19	// 100 plasma kills
-#define NW_ACH_BOSS_RUSH	20	// kill 5 bosses in a row
-#define NW_ACH_ECHO_CHAMPION	21	// trigger echo-chaos 10 times (secret)
-#define NW_ACH_OVERCLOCKED	22	// use 10 overclocks in one run (secret)
-#define NW_ACH_FUSION_DISCOVERER	23	// trigger all fusion types (secret)
-#define NW_ACH_ALL_UPGRADES	24	// max all upgrade types
-#define NW_ACH_COUNT		25
-
 int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
-static int nw_multikillCount = 0;
+int nw_multikillCount = 0;
 static int nw_multikillTime = 0;
-static qboolean nw_untouchableWave = qtrue;
+qboolean nw_untouchableWave = qtrue;
 static qboolean nw_fcFired;
 static qboolean nw_failFired;
 static qboolean nw_replayTestDone76;	// v0.38: test 76 roundtrip synchronisation
@@ -97,7 +68,7 @@ static qboolean nw_replayTestDone78;	// v0.38: test 78 load/verify
 static qboolean nw_replayTestDone79;	// v0.38: test 79 playback walk
 static qboolean nw_replayTestDone80;	// v0.38: test 80 overflow
 static int nw_replayEdgeEvents;		// v0.38: over-limit counter for test 80 (accumulated in G_ReplayRecord)
-static int nw_runKills;			// autokill + headless kill counter (achievements)
+int nw_runKills;			// autokill + headless kill counter (achievements)
 static int nw_modifier = NW_MOD_NONE;
 static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (wave >= 8)
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
@@ -107,8 +78,7 @@ int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
-static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
-static qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run, run-stats JSON
+qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run, run-stats JSON
 qboolean nw_dailyActive;	// daily challenge (same seed = same run for everyone)
 static int nw_synergyIdx = -1;	// v0.37: index into nwSynergies, -1 = none
 static int nw_ptsMul = 1;		// v0.37: wave-clear point multiplier (DOUBLEPTS/SURGE/AERIAL)
@@ -118,9 +88,8 @@ static int nw_statusDirty = 0;
 static int nw_lastStatusWave = 0;
 static int nw_lastStatusHp = 0;
 static int nw_lastStatusPts = 0;
-static void NW_LoadAchievements( void );
 static const char *NW_DifficultyName( int d );
-static int NW_RunDeaths( void );
+int NW_RunDeaths( void );
 static const char *NW_PerkName( int id );
 static int NW_PerkCap( int id );
 static void NW_ApplySynergy( void );
@@ -129,7 +98,7 @@ static qboolean NW_DifficultyLocked( void );
 static void NW_RollOffers( int clientID );
 static void NW_MirrorPerks( int clientID );
 static int NW_TestPlayerSkipBots( void );
-static qboolean NW_Headless( void );
+qboolean NW_Headless( void );
 static int NW_CoopMockExtra( qboolean alive );
 
 // ---- vampiric healing stubs (implemented in g_combat.c via cvar) ----
@@ -168,7 +137,7 @@ static void NW_VampireHeal( gentity_t *t ) {
 // five O(maxclients) loops. We compute them all in one pass and cache the
 // result, invalidating only when relevant state changes.
 static nwCache_t nw_cache;
-static void NW_InvalidateCache( void ) {
+void NW_InvalidateCache( void ) {
     nw_cache.valid = qfalse;
 }
 
@@ -261,7 +230,7 @@ static void NW_UpdateDifficultyOnClear( void ) {
 }
 
 // total human deaths this run
-static int NW_RunDeaths( void ) {
+int NW_RunDeaths( void ) {
 	int i, deaths = 0;
 	gentity_t *ent;
 	for ( i = 0; i < level.maxclients; i++ ) {
@@ -1011,7 +980,7 @@ static int NW_TestPlayerSkipBots( void ) {
 }
 
 // Headless CI: g_neonwave_autostart 1 runs the wave loop with no human client.
-static qboolean NW_Headless( void ) {
+qboolean NW_Headless( void ) {
 	char buf[8];
 	trap_Cvar_VariableStringBuffer( "g_neonwave_autostart", buf, sizeof(buf) );
 	return atoi( buf ) != 0;
@@ -2197,177 +2166,6 @@ static void NW_KickBots( void ) {
 }
 
 // ---- achievements (persistent badges, exposed in run-stats JSON) ----
-// Per-run badges are computed at game over and mirrored into the run-stats JSON
-// (achievements[]). Unlocked-ever state is persisted to neonwave_achievements.dat
-// so a player-side dashboard can show lifetime progress (X/8 unlocked).
-static const char *NW_AchievementName( int id ) {
-	switch ( id ) {
-	case NW_ACH_FIRST_VICTORY: return "FIRST VICTORY";
-	case NW_ACH_SURVIVOR:      return "SURVIVOR";
-	case NW_ACH_SHARPSHOOTER:  return "SHARPSHOOTER";
-	case NW_ACH_STREAKER:      return "STREAKER";
-	case NW_ACH_FLAWLESS:      return "FLAWLESS";
-	case NW_ACH_COMBOMASTER:  return "COMBOMASTER";
-	case NW_ACH_SPEEDRUNNER:  return "SPEEDRUNNER";
-	case NW_ACH_HARDCORE:     return "HARDCORE";
-	case NW_ACH_KILL_100:     return "BOT SLAYER";
-	case NW_ACH_KILL_1000:    return "BOT ANNIHILATOR";
-	case NW_ACH_WAVE_5:       return "GETTING STARTED";
-	case NW_ACH_WAVE_10:      return "VETERAN";
-	case NW_ACH_WAVE_30:      return "ENDURANCE";
-	case NW_ACH_WAVE_50:      return "MARATHON";
-	case NW_ACH_PERFECT_WAVE: return "UNTOUCHABLE";
-	case NW_ACH_MULTIKILL_3:  return "TRIPLE KILL";
-	case NW_ACH_MULTIKILL_5:  return "PENTAKILL";
-	case NW_ACH_RAILGUN_MASTER:  return "RAILGUN MASTER";
-	case NW_ACH_LIGHTNING_MASTER: return "STORM BRINGER";
-	case NW_ACH_PLASMA_MASTER:    return "PLASMA SPECIALIST";
-	case NW_ACH_BOSS_RUSH:    return "BOSS RUSH";
-	case NW_ACH_ECHO_CHAMPION:    return "ECHO MASTER";
-	case NW_ACH_OVERCLOCKED:       return "OVERCLOCKED";
-	case NW_ACH_FUSION_DISCOVERER: return "FUSION SCHOLAR";
-	case NW_ACH_ALL_UPGRADES:      return "MAXED OUT";
-	default:                   return "";
-	}
-}
-
-#define NW_ACHIEVEMENTS_FILE	"neonwave_achievements.dat"
-static qboolean nw_achEver[ NW_ACH_COUNT ]; // unlocked at least once (lifetime)
-
-static void NW_LoadAchievements( void ) {
-	fileHandle_t f;
-	int i, len, n;
-	memset( nw_achEver, 0, sizeof( nw_achEver ) );
-	len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_READ );
-	if ( len >= 0 && f ) {
-		n = len;
-		if ( n > (int)sizeof( nw_achEver ) ) {
-			n = (int)sizeof( nw_achEver );
-		}
-		if ( n > 0 ) {
-			trap_FS_Read( nw_achEver, n, f );
-		}
-		trap_FS_FCloseFile( f );
-	}
-	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
-		if ( nw_achEver[i] ) {
-			G_Printf( "NeonWave: achievement already unlocked: %s\n",
-				NW_AchievementName( i ) );
-		}
-	}
-}
-
-static void NW_SaveAchievements( void ) {
-	fileHandle_t f;
-	int len;
-	/* Headless tests earn the log line. They must not write the player profile. */
-	if ( NW_Headless() ) {
-		G_Printf( "NeonWave: achievement save skipped (autostart)\n" );
-		return;
-	}
-	len = trap_FS_FOpenFile( NW_ACHIEVEMENTS_FILE, &f, FS_WRITE );
-	if ( len < 0 || !f ) {
-		G_Printf( "NeonWave: WARNING cannot write " NW_ACHIEVEMENTS_FILE "\n" );
-		return;
-	}
-	trap_FS_Write( nw_achEver, sizeof( nw_achEver ), f );
-	trap_FS_FCloseFile( f );
-}
-
-// Evaluate per-run achievements, merge into lifetime state, emit log markers.
-// "ACHIEVEMENT <NAME>" fire every run the badge is earned (CI-assertable).
-// "ACHIEVEMENT UNLOCKED <NAME>" fires only the first time ever (player feedback).
-static void NW_CheckAchievements( int event ) {
-	int combo, deaths, victory, runSec, kills, i;
-	char fkBuf[16];
-	int fk;
-	trap_Cvar_VariableStringBuffer( "g_neonwave_fakekills", fkBuf, sizeof(fkBuf) );
-	fk = atoi( fkBuf );
-	if ( fk > 0 ) {
-		nw_runKills += fk;
-		NW_InvalidateCache();
-	}
-	combo = NW_Cache()->bestCombo;
-	deaths = NW_RunDeaths();
-	victory = ( event == NW_EV_VICTORY ) ? 1 : 0;
-	runSec = ( level.time - nw_runStartTime ) / 1000;
-	kills = NW_Cache()->kills;
-
-	// reset per-run bitmask (defensive; NeonWave_Reset already clears)
-	{
-		int ai;
-		for ( ai = 0; ai < NW_ACH_COUNT; ai++ ) {
-			nw_achievements[ai] = qfalse;
-		}
-	}
-	if ( victory ) {
-		nw_achievements[ NW_ACH_FIRST_VICTORY ] = qtrue;
-	}
-	if ( nw_wave >= 15 ) {
-		nw_achievements[ NW_ACH_SURVIVOR ] = qtrue;
-	}
-	if ( combo >= 5 ) {
-		nw_achievements[ NW_ACH_STREAKER ] = qtrue;
-	}
-	if ( combo >= 8 ) {
-		nw_achievements[ NW_ACH_SHARPSHOOTER ] = qtrue;
-	}
-	if ( victory && deaths == 0 ) {
-		nw_achievements[ NW_ACH_FLAWLESS ] = qtrue;
-	}
-	if ( combo >= 12 ) {
-		nw_achievements[ NW_ACH_COMBOMASTER ] = qtrue;
-	}
-	if ( victory && runSec <= 300 ) {
-		nw_achievements[ NW_ACH_SPEEDRUNNER ] = qtrue;
-	}
-	if ( victory && nw_hardcore ) {
-		nw_achievements[ NW_ACH_HARDCORE ] = qtrue;
-	}
-	// v0.60: new achievements
-	if ( kills >= 100 ) {
-		nw_achievements[ NW_ACH_KILL_100 ] = qtrue;
-	}
-	if ( kills >= 1000 ) {
-		nw_achievements[ NW_ACH_KILL_1000 ] = qtrue;
-	}
-	if ( nw_wave >= 5 ) {
-		nw_achievements[ NW_ACH_WAVE_5 ] = qtrue;
-	}
-	if ( nw_wave >= 10 ) {
-		nw_achievements[ NW_ACH_WAVE_10 ] = qtrue;
-	}
-	if ( nw_wave >= 30 ) {
-		nw_achievements[ NW_ACH_WAVE_30 ] = qtrue;
-	}
-	if ( nw_wave >= 50 ) {
-		nw_achievements[ NW_ACH_WAVE_50 ] = qtrue;
-	}
-	if ( nw_untouchableWave ) {
-		nw_achievements[ NW_ACH_PERFECT_WAVE ] = qtrue;
-	}
-	if ( nw_multikillCount >= 3 ) {
-		nw_achievements[ NW_ACH_MULTIKILL_3 ] = qtrue;
-	}
-	if ( nw_multikillCount >= 5 ) {
-		nw_achievements[ NW_ACH_MULTIKILL_5 ] = qtrue;
-	}
-
-	for ( i = 0; i < NW_ACH_COUNT; i++ ) {
-		if ( !nw_achievements[i] ) {
-			continue;
-		}
-		G_Printf( "NeonWave: ACHIEVEMENT %s\n", NW_AchievementName( i ) );
-		if ( !nw_achEver[i] ) {
-			nw_achEver[i] = qtrue;
-			G_Printf( "NeonWave: ACHIEVEMENT UNLOCKED %s\n", NW_AchievementName( i ) );
-			// Notify clients via cvar
-			trap_Cvar_Set( "ui_neonwave_achievement", NW_AchievementName( i ) );
-		}
-	}
-	NW_SaveAchievements();
-}
-
 // ---- run-stats JSON export (local dashboard data source) ----
 #define NW_RUNSTATS_FILE "neonwave_runstats.json"
 
