@@ -4,6 +4,7 @@
 
 #ifdef NEONARENA_MOD
 #include "neon_daily_pool.h"
+#include "g_nw_internal.h"
 #include "neon_maplook.h"
 
 #define NW_FIRST_WAVE_DELAY	5000	// ms after map start
@@ -83,7 +84,7 @@
 #define NW_ACH_ALL_UPGRADES	24	// max all upgrade types
 #define NW_ACH_COUNT		25
 
-static int nw_wave;				// current wave (1-based)
+int nw_wave;				// current wave (1-based)
 static int nw_aliveBots;
 static int nw_multikillCount = 0;
 static int nw_multikillTime = 0;
@@ -102,13 +103,13 @@ static int nw_modifier2 = NW_MOD_NONE;	// v0.35: second synergy modifier slot (w
 static int nw_bossType = 0;		// current boss type (NW_BOSS_*)
 static int nw_bossPhase = 1;		// boss phase (1 normal, 2 enraged after 50% hp)
 static int nw_bossLastAttack = 0;	// last BERSERKER attack frame (speed hacking)
-static int nw_runStartTime;		// run stats: level.time of first wave start
+int nw_runStartTime;		// run stats: level.time of first wave start
 static int nw_runBestCombo;		// run stats: best streak this run (survives bot disconnects)
 static int nw_difficulty = 0;	// dynamic difficulty tier -2..1 (0=normal)
 static int nw_modifiersSeen;	// bitmask of modifiers encountered this run (run-stats JSON)
 static qboolean nw_achievements[ NW_ACH_COUNT ]; // unlocked this run (run-stats JSON)
 static qboolean nw_hardcore;	// hardcore mode (g_neonwave_hardcore): tougher run, run-stats JSON
-static qboolean nw_dailyActive;	// daily challenge (same seed = same run for everyone)
+qboolean nw_dailyActive;	// daily challenge (same seed = same run for everyone)
 static int nw_synergyIdx = -1;	// v0.37: index into nwSynergies, -1 = none
 static int nw_ptsMul = 1;		// v0.37: wave-clear point multiplier (DOUBLEPTS/SURGE/AERIAL)
 static int nw_lastSeenDeaths = -1;	// dynamic difficulty: deaths at last wave clear
@@ -166,25 +167,13 @@ static void NW_VampireHeal( gentity_t *t ) {
 // NW_RunBestCombo, NW_RunCurrentCombo, NW_BossHealth, NW_PointsBroadcast —
 // five O(maxclients) loops. We compute them all in one pass and cache the
 // result, invalidating only when relevant state changes.
-typedef struct nwCache_t {
-    int     kills;
-    int     bestCombo;
-    int     currentCombo;
-    int     bossHp;
-    int     bossMax;
-    int     points;         // first human's upgrade points
-    qboolean valid;
-} nwCache_t;
-
 static nwCache_t nw_cache;
-static const nwCache_t *NW_Cache( void );
-
 static void NW_InvalidateCache( void ) {
     nw_cache.valid = qfalse;
 }
 
 // Single-pass aggregation of all per-client statistics.
-static const nwCache_t *NW_Cache( void ) {
+const nwCache_t *NW_Cache( void ) {
     int i;
     gentity_t *ent;
     if ( nw_cache.valid ) {
@@ -310,7 +299,7 @@ static int nw_breakEnd;
 static qboolean nw_waveHadBots;	// true once at least one bot connected this wave
 static qboolean nw_over;
 static int nw_event;
-static qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
+qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
 static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
 static int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];	// per-client stacks/charges
 static int nw_offer[ MAX_CLIENTS ][ 3 ];			// per-client break-window perk cards
@@ -369,14 +358,6 @@ static void NW_DailyInit( void ) {
 }
 
 // daily records use their own file so normal bests stay untouched
-#define NW_DAILY_RECORDS_FILE	"neonwave_daily_records.dat"
-
-// forward declarations (records block is defined further down)
-static void NW_LoadRecords( void );
-static void NW_MirrorRecordCvars( void );
-static void NW_LoadDailyRecords( void );
-static void NW_MirrorDailyRecordCvars( void );
-
 static int nw_bossEntityCache = -1;	// Cached boss entity index (-1 = invalid)
 
 static void NW_InvalidateBossCache( void ) {
@@ -1040,207 +1021,6 @@ void NeonWave_TrackRunCombo( int combo ) {
 	if ( combo > nw_runBestCombo ) {
 		nw_runBestCombo = combo;
 	}
-}
-
-// ---- persistent records (survive map change / restart) ----
-#define NW_RECORDS_FILE		"neonwave_records.dat"
-
-typedef struct {
-	int	bestWave;
-	int	bestTime;	// fastest victory, seconds (0 = none)
-	int	bestKills;
-	int	bestCombo;
-} nwRecords_t;
-
-static nwRecords_t nw_records;
-
-static void NW_LoadRecords( void ) {
-	fileHandle_t f;
-	memset( &nw_records, 0, sizeof( nw_records ) );
-	if ( trap_FS_FOpenFile( NW_RECORDS_FILE, &f, FS_READ ) >= 0 && f ) {
-		trap_FS_Read( &nw_records, sizeof( nw_records ), f );
-		trap_FS_FCloseFile( f );
-	}
-	G_Printf( "NeonWave: records loaded wave=%i time=%is kills=%i combo=%i\n",
-		nw_records.bestWave, nw_records.bestTime,
-		nw_records.bestKills, nw_records.bestCombo );
-	NW_MirrorRecordCvars();
-}
-
-static void NW_SaveRecords( void ) {
-	fileHandle_t f;
-	int len = trap_FS_FOpenFile( NW_RECORDS_FILE, &f, FS_WRITE );
-	if ( len < 0 || !f ) {
-		G_Printf( "NeonWave: WARNING cannot write " NW_RECORDS_FILE "\n" );
-		return;
-	}
-	trap_FS_Write( &nw_records, sizeof( nw_records ), f );
-	trap_FS_FCloseFile( f );
-	G_Printf( "NeonWave: RECORDS SAVED wave=%i time=%is kills=%i combo=%i\n",
-		nw_records.bestWave, nw_records.bestTime,
-		nw_records.bestKills, nw_records.bestCombo );
-}
-
-// ---- daily records (per-day bests, separate file, reset on day change) ----
-typedef struct {
-	int		dayStamp;	// yyyymmdd the records belong to
-	int		bestWave;
-	int		bestTime;	// fastest victory, seconds (0 = none)
-	int		bestKills;
-	int		bestCombo;
-	int		dayResult;	// 0=no run yet today, 1=no victory today, 2=victory today
-	int		streak;		// consecutive daily victories (persists across days)
-} nwDailyRecords_t;
-
-static nwDailyRecords_t nw_dailyRecords;
-
-static int NW_DailyStamp( void ) {
-	qtime_t tm;
-	trap_RealTime( &tm );
-	return ( tm.tm_year + 1900 ) * 10000 + ( tm.tm_mon + 1 ) * 100 + tm.tm_mday;
-}
-
-static void NW_LoadDailyRecords( void ) {
-	fileHandle_t f;
-	nwDailyRecords_t saved;
-	memset( &nw_dailyRecords, 0, sizeof( nw_dailyRecords ) );
-	nw_dailyRecords.dayStamp = NW_DailyStamp();
-	if ( trap_FS_FOpenFile( NW_DAILY_RECORDS_FILE, &f, FS_READ ) >= 0 && f ) {
-		trap_FS_Read( &saved, sizeof( saved ), f );
-		if ( saved.dayStamp == nw_dailyRecords.dayStamp ) {
-			// same day: keep today's records (including today's streak/dayResult)
-			nw_dailyRecords = saved;
-		} else {
-			// different day: carry streak forward if yesterday was a victory
-			nw_dailyRecords.streak = ( saved.dayResult == 2 ) ? saved.streak : 0;
-			// dayResult stays 0 (today hasn't been played yet)
-		}
-		trap_FS_FCloseFile( f );
-	}
-	G_Printf( "NeonWave: DAILY records loaded wave=%i time=%is kills=%i combo=%i\n",
-		nw_dailyRecords.bestWave, nw_dailyRecords.bestTime,
-		nw_dailyRecords.bestKills, nw_dailyRecords.bestCombo );
-	NW_MirrorDailyRecordCvars();
-}
-
-// mirror daily record values to cvars (cgame reads them for the daily HUD)
-static void NW_MirrorDailyRecordCvars( void ) {
-	trap_Cvar_Set( "g_neonwave_dailyrecwave", va( "%i", nw_dailyRecords.bestWave ) );
-	trap_Cvar_Set( "g_neonwave_dailyrectime", va( "%i", nw_dailyRecords.bestTime ) );
-	trap_Cvar_Set( "g_neonwave_dailyreckills", va( "%i", nw_dailyRecords.bestKills ) );
-	trap_Cvar_Set( "g_neonwave_dailyreccombo", va( "%i", nw_dailyRecords.bestCombo ) );
-	trap_Cvar_Set( "g_neonwave_dailystreak", va( "%i", nw_dailyRecords.streak ) );
-}
-
-static void NW_SaveDailyRecords( void ) {
-	fileHandle_t f;
-	int len = trap_FS_FOpenFile( NW_DAILY_RECORDS_FILE, &f, FS_WRITE );
-	if ( len < 0 || !f ) {
-		G_Printf( "NeonWave: WARNING cannot write " NW_DAILY_RECORDS_FILE "\n" );
-		return;
-	}
-	nw_dailyRecords.dayStamp = NW_DailyStamp();
-	trap_FS_Write( &nw_dailyRecords, sizeof( nw_dailyRecords ), f );
-	trap_FS_FCloseFile( f );
-	G_Printf( "NeonWave: DAILY RECORDS SAVED wave=%i time=%is kills=%i combo=%i\n",
-		nw_dailyRecords.bestWave, nw_dailyRecords.bestTime,
-		nw_dailyRecords.bestKills, nw_dailyRecords.bestCombo );
-}
-
-static void NW_UpdateDailyRecords( int kills, int combo, int runSec ) {
-	qboolean changed = qfalse;
-	qboolean firstRunToday = qfalse;
-
-	// day rolled over mid-session: reload (carries streak forward if yesterday was a victory)
-	if ( nw_dailyRecords.dayStamp != NW_DailyStamp() ) {
-		NW_LoadDailyRecords();
-	}
-	// first run of the day: determine streak outcome
-	if ( nw_dailyRecords.dayResult == 0 ) {
-		firstRunToday = qtrue;
-		if ( nw_overVictory ) {
-			nw_dailyRecords.dayResult = 2;
-			nw_dailyRecords.streak++;
-		} else {
-			nw_dailyRecords.dayResult = 1;
-			nw_dailyRecords.streak = 0;
-		}
-	}
-
-	trap_Cvar_Set( "g_neonwave_newrecord", "0" );
-	if ( nw_wave > nw_dailyRecords.bestWave ) {
-		nw_dailyRecords.bestWave = nw_wave;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW DAILY RECORD WAVE %i\n", nw_wave );
-	}
-	if ( nw_overVictory && ( nw_dailyRecords.bestTime <= 0 || runSec < nw_dailyRecords.bestTime ) ) {
-		nw_dailyRecords.bestTime = runSec;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW DAILY RECORD TIME %is\n", runSec );
-	}
-	if ( kills > nw_dailyRecords.bestKills ) {
-		nw_dailyRecords.bestKills = kills;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW DAILY RECORD KILLS %i\n", kills );
-	}
-	if ( combo > nw_dailyRecords.bestCombo ) {
-		nw_dailyRecords.bestCombo = combo;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW DAILY RECORD COMBO %ix\n", combo );
-	}
-	// always persist current daily state (records + streak + dayResult)
-	NW_SaveDailyRecords();
-	trap_Cvar_Set( "g_neonwave_newrecord", changed ? "1" : "0" );
-	NW_MirrorDailyRecordCvars();
-}
-
-static void NW_UpdateRecords( void ) {
-	// Use the cached single-pass scan (also used by NW_SendStatus)
-	const nwCache_t *cache = NW_Cache();
-	int kills = cache->kills;
-	int combo = cache->bestCombo;
-	int runSec = ( level.time - nw_runStartTime ) / 1000;
-	qboolean changed = qfalse;
-
-	// daily challenge: update the per-day record set instead of the global one
-	if ( nw_dailyActive ) {
-		NW_UpdateDailyRecords( kills, combo, runSec );
-	}
-
-	trap_Cvar_Set( "g_neonwave_newrecord", "0" ); // reset per run end
-	if ( nw_wave > nw_records.bestWave ) {
-		nw_records.bestWave = nw_wave;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW RECORD WAVE %i\n", nw_wave );
-	}
-	if ( nw_overVictory && ( nw_records.bestTime <= 0 || runSec < nw_records.bestTime ) ) {
-		nw_records.bestTime = runSec;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW RECORD TIME %is\n", runSec );
-	}
-	if ( kills > nw_records.bestKills ) {
-		nw_records.bestKills = kills;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW RECORD KILLS %i\n", kills );
-	}
-	if ( combo > nw_records.bestCombo ) {
-		nw_records.bestCombo = combo;
-		changed = qtrue;
-		G_Printf( "NeonWave: NEW RECORD COMBO %ix\n", combo );
-	}
-	if ( changed ) {
-		NW_SaveRecords();
-		trap_Cvar_Set( "g_neonwave_newrecord", "1" ); // cgame: NEW RECORD banner
-	}
-	NW_MirrorRecordCvars();
-}
-
-// mirror current record values to cvars (called on load and on record update)
-static void NW_MirrorRecordCvars( void ) {
-	trap_Cvar_Set( "g_neonwave_recwave", va("%i", nw_records.bestWave) );
-	trap_Cvar_Set( "g_neonwave_rectime", va("%i", nw_records.bestTime) );
-	trap_Cvar_Set( "g_neonwave_reckills", va("%i", nw_records.bestKills) );
-	trap_Cvar_Set( "g_neonwave_reccombo", va("%i", nw_records.bestCombo) );
 }
 
 static void NW_SendStatus( int event ) {
