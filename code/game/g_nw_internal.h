@@ -143,7 +143,18 @@ void NW_PickModifier( int num );
 
 // perk state shared with the modifiers module (SKIP check in NW_PickModifier)
 extern int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];
+extern int nw_offer[ MAX_CLIENTS ][ 3 ];	// per-client break-window perk cards
 void NW_MirrorPerks( int clientID );
+
+// ---- perks module (g_nw_perks.c) ----
+const char *NW_PerkName( int id );
+int NW_PerkCap( int id );
+void NW_RollOffers( int clientID );
+
+// shared helpers from g_neonwave.c used by the perks module
+int NW_PointsForClient( gentity_t *ent );
+void NW_MirrorPointsCvar( void );
+int NW_TestPlayerSkipBots( void );
 
 // ---- bosses module (g_nw_bosses.c) ----
 #define NW_BOSS_SNIPER		1	// railgun sniper (classic)

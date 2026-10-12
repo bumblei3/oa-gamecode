@@ -64,11 +64,8 @@ static int nw_lastStatusHp = 0;
 static int nw_lastStatusPts = 0;
 static const char *NW_DifficultyName( int d );
 int NW_RunDeaths( void );
-static const char *NW_PerkName( int id );
-static int NW_PerkCap( int id );
 static qboolean NW_DifficultyLocked( void );
-static void NW_RollOffers( int clientID );
-static int NW_TestPlayerSkipBots( void );
+int NW_TestPlayerSkipBots( void );
 qboolean NW_Headless( void );
 static int NW_CoopMockExtra( qboolean alive );
 
@@ -241,8 +238,6 @@ static qboolean nw_over;
 static int nw_event;
 qboolean nw_overVictory;		// last run ended in victory (record time only counts then)
 static int nw_bossAttr = 0;		// boss attribute overlay (g_neonwave_bossattr)
-int nw_perk[ MAX_CLIENTS ][ NW_PERK_COUNT ];	// per-client stacks/charges
-static int nw_offer[ MAX_CLIENTS ][ 3 ];			// per-client break-window perk cards
 static int nw_waveStartTime;
 static int nw_fxSeq;
 
@@ -774,7 +769,7 @@ void NW_SpawnBotsBatch( int skill, int count ) {
 	}
 }
 
-static int NW_PointsForClient( gentity_t *ent ) {
+int NW_PointsForClient( gentity_t *ent ) {
 	if ( !ent || !ent->client ) {
 		return 0;
 	}
@@ -792,7 +787,7 @@ static int NW_PointsBroadcast( void ) {
 
 // ---- legacy cvar mirror (compatibility only): kept in sync with the
 // first connected human client so tools/debug that read the cvar still work.
-static void NW_MirrorPointsCvar( void ) {
+void NW_MirrorPointsCvar( void ) {
 	trap_Cvar_Set( "g_neonwave_upgradepoints", va( "%i", NW_PointsBroadcast() ) );
 }
 
@@ -812,7 +807,7 @@ NW_SendStatus
 // ---- run statistics (aggregated over all humans) ----
 // (nw_runStartTime declared with the other statics at top)
 
-static int NW_TestPlayerSkipBots( void ) {
+int NW_TestPlayerSkipBots( void ) {
 	char buf[8];
 	trap_Cvar_VariableStringBuffer( "g_neonwave_botasplayer", buf, sizeof(buf) );
 	return atoi( buf );
@@ -911,37 +906,6 @@ static void NeonWave_UpdateHighscore( void ) {
 }
 
 // ---- break-window perks (v0.28) ----
-static const char *NW_PerkName( int id ) {
-	switch ( id ) {
-	case NW_PERK_PIERCE:		return "PIERCE";
-	case NW_PERK_CHAIN:		return "CHAIN";
-	case NW_PERK_DASH:		return "DASH";
-	case NW_PERK_OVERCHARGE:	return "OVERCHARGE";
-	case NW_PERK_SECONDWIND:	return "SECOND WIND";
-	case NW_PERK_SKIP:		return "SKIP";
-	default:			return "";
-	}
-}
-
-static int NW_PerkCap( int id ) {
-	// PIERCE/CHAIN/OVERCHARGE/DASH scale with rank (v0.34): up to rank 3.
-	if ( id == NW_PERK_PIERCE || id == NW_PERK_CHAIN
-		|| id == NW_PERK_OVERCHARGE || id == NW_PERK_DASH ) {
-		return 3;
-	}
-	return 1; // SKIP / SECOND WIND are consumables
-}
-
-int NeonWave_PerkLevel( int clientID, int perk ) {
-	if ( perk <= 0 || perk >= NW_PERK_COUNT ) {
-		return 0;
-	}
-	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
-		return 0;
-	}
-	return nw_perk[ clientID ][ perk ];
-}
-
 int NeonWave_WaveStartTime( void ) {
 	return nw_waveStartTime;
 }
@@ -952,168 +916,6 @@ void NeonWave_PerkFx( const char *kind ) {
 	}
 	nw_fxSeq++;
 	trap_Cvar_Set( "ui_neonwave_fx", va( "%s-%i", kind, nw_fxSeq ) );
-}
-
-void NW_MirrorPerks( int clientID ) {
-	char offers[96];
-	char owned[96];
-	int i, first;
-
-	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
-		return;
-	}
-	Com_sprintf( offers, sizeof( offers ), "%s|%s|%s",
-		NW_PerkName( nw_offer[clientID][0] ),
-		NW_PerkName( nw_offer[clientID][1] ),
-		NW_PerkName( nw_offer[clientID][2] ) );
-	trap_Cvar_Set( va( "ui_neonwave_offers_%i", clientID ), offers );
-
-	// Build the owned string with Com_sprintf at the current offset instead of
-	// repeated Q_strcat (which scans from the start each time). We track the
-	// current length manually.
-	owned[0] = '\0';
-	first = 1;
-	for ( i = 1; i < NW_PERK_COUNT; i++ ) {
-		int len = (int)strlen( owned );
-		if ( nw_perk[clientID][i] <= 0 ) {
-			continue;
-		}
-		if ( !first ) {
-			Com_sprintf( owned + len, sizeof( owned ) - len, ", " );
-			len = (int)strlen( owned );
-		}
-		first = 0;
-		if ( nw_perk[clientID][i] > 1 ) {
-			Com_sprintf( owned + len, sizeof( owned ) - len, "%s x%i", NW_PerkName( i ), nw_perk[clientID][i] );
-		} else {
-			Com_sprintf( owned + len, sizeof( owned ) - len, "%s", NW_PerkName( i ) );
-		}
-	}
-	trap_Cvar_Set( va( "ui_neonwave_owned_%i", clientID ), owned );
-}
-
-static void NW_RollOffers( int clientID ) {
-	int eligible[ NW_PERK_COUNT ];
-	int n = 0, i, slot, idx;
-	char force[32];
-	int a = 0, b = 0, c = 0;
-
-	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
-		return;
-	}
-	nw_offer[clientID][0] = nw_offer[clientID][1] = nw_offer[clientID][2] = 0;
-	trap_Cvar_Set( va( "ui_neonwave_picked_%i", clientID ), "0" );
-
-	trap_Cvar_VariableStringBuffer( "g_neonwave_perkforce", force, sizeof( force ) );
-	// packed 3 digits (123 = PIERCE CHAIN DASH) — ioq3 +set cannot pass commas
-	{
-		int packed = atoi( force );
-		if ( packed >= 111 && packed <= 666 ) {
-			a = packed / 100;
-			b = ( packed / 10 ) % 10;
-			c = packed % 10;
-		} else if ( force[0] ) {
-			sscanf( force, "%i-%i-%i", &a, &b, &c );
-		}
-	}
-	if ( a >= 1 && a < NW_PERK_COUNT ) {
-		nw_offer[clientID][0] = a;
-		nw_offer[clientID][1] = b;
-		nw_offer[clientID][2] = c;
-	} else {
-		for ( i = 1; i < NW_PERK_COUNT; i++ ) {
-			/* Rail-only Ghost: CHAIN is lightning and a dead card. perkforce still overrides. */
-			if ( NW_GhostActive() && i == NW_PERK_CHAIN ) {
-				continue;
-			}
-			if ( nw_perk[clientID][i] < NW_PerkCap( i ) ) {
-				eligible[n++] = i;
-			}
-		}
-		for ( slot = 0; slot < 3 && n > 0; slot++ ) {
-			idx = ( nw_wave * 13 + slot * 7 + nw_dailyOffset ) % n;
-			if ( idx < 0 ) {
-				idx += n;
-			}
-			nw_offer[clientID][slot] = eligible[idx];
-			eligible[idx] = eligible[--n];
-		}
-	}
-	G_Printf( "NeonWave: PERK OFFER F1=%s F2=%s F3=%s\n",
-		NW_PerkName( nw_offer[clientID][0] ),
-		NW_PerkName( nw_offer[clientID][1] ),
-		NW_PerkName( nw_offer[clientID][2] ) );
-	NW_MirrorPerks( clientID );
-}
-
-qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
-	int id, pts, cap;
-	int clientID;
-
-	if ( !NeonWave_IsBreak() ) {
-		return qfalse;
-	}
-	if ( slot < 1 || slot > 3 ) {
-		return qfalse;
-	}
-	if ( !ent || !ent->client ) {
-		return qfalse;
-	}
-	clientID = ent - g_entities;
-	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
-		return qfalse;
-	}
-	id = nw_offer[clientID][ slot - 1 ];
-	if ( id < 1 || id >= NW_PERK_COUNT ) {
-		return qfalse;
-	}
-	pts = NW_PointsForClient(ent);
-	if ( pts < 1 ) {
-		return qfalse;
-	}
-	cap = NW_PerkCap( id );
-	if ( nw_perk[clientID][id] >= cap ) {
-		return qfalse;
-	}
-	nw_perk[clientID][id]++;
-	pts--;
-	ent->client->pers.neonwaveUpgradePts = pts;
-	NW_MirrorPointsCvar();
-	nw_offer[clientID][ slot - 1 ] = 0;
-	trap_Cvar_Set( va( "ui_neonwave_picked_%i", clientID ), va( "%i", slot ) );
-	G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
-		NW_PerkName( id ), nw_perk[clientID][id], pts );
-	trap_SendServerCommand( ent - g_entities,
-		va( "cp \"PERK: %s\\n\"", NW_PerkName( id ) ) );
-	NW_MirrorPerks( clientID );
-	NeonWave_RefreshStatus();
-	return qtrue;
-}
-
-qboolean NeonWave_TrySecondWind( gentity_t *ent ) {
-	int clientID;
-	if ( !ent || !ent->client ) {
-		return qfalse;
-	}
-	if ( g_gametype.integer != GT_NEONWAVE ) {
-		return qfalse;
-	}
-	clientID = ent - g_entities;
-	if ( clientID < 0 || clientID >= MAX_CLIENTS ) {
-		return qfalse;
-	}
-	if ( nw_perk[clientID][ NW_PERK_SECONDWIND ] <= 0 ) {
-		return qfalse;
-	}
-	nw_perk[clientID][ NW_PERK_SECONDWIND ]--;
-	ent->health = 40;
-	ent->client->ps.stats[ STAT_HEALTH ] = 40;
-	ent->client->ps.pm_type = PM_NORMAL;
-	G_Printf( "NeonWave: SECOND WIND saved the player\n" );
-	trap_SendServerCommand( -1, "cp \"SECOND WIND\\n\"" );
-	NeonWave_PerkFx( "secondwind" );
-	NW_MirrorPerks( clientID );
-	return qtrue;
 }
 
 void NeonWave_LightningChain( gentity_t *attacker, gentity_t *primary, int damage ) {
