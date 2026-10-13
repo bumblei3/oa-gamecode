@@ -177,7 +177,7 @@ void NeonWave_OnPlayerDeath( struct gclient_s *client ) {
 	if ( client->nwDeaths > 0 && client->nwDeaths % 2 == 0 && nw_difficulty > -2 ) {
 		nw_difficulty--;
 		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
-		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\\n\"", NW_DifficultyName( nw_difficulty ) ) );
+		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\n\"", NW_DifficultyName( nw_difficulty ) ) );
 	}
 }
 
@@ -192,7 +192,7 @@ static void NW_UpdateDifficultyOnClear( void ) {
 		// wave cleared without dying since the last clear -> harder
 		nw_difficulty++;
 		G_Printf( "NeonWave: dynamic difficulty -> %s\n", NW_DifficultyName( nw_difficulty ) );
-		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\\n\"", NW_DifficultyName( nw_difficulty ) ) );
+		trap_SendServerCommand( -1, va( "cp \"DIFFICULTY: %s\n\"", NW_DifficultyName( nw_difficulty ) ) );
 	}
 	nw_lastSeenDeaths = deathsNow;
 }
@@ -1379,7 +1379,7 @@ void NeonWave_StartWave( int num ) {
 
 	NW_SendStatus( NW_EV_RUNNING );
 	if ( nw_synergyIdx >= 0 ) {
-		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s + %s\\n%s\"",
+		trap_SendServerCommand( -1, va( "cp \"WAVE %i: %s + %s\n%s\"",
 			num, NW_ModifierName( nw_modifier ), NW_ModifierName( nw_modifier2 ),
 			NW_SynergyName( nw_synergyIdx ) ) );
 	} else if ( nw_modifier != NW_MOD_NONE ) {
@@ -1601,7 +1601,7 @@ static void NW_EnterBreak( void ) {
 	}
 	NW_SendStatus( NW_EV_CLEARED );
 	NeonWave_LogPayload();
-	trap_SendServerCommand( -1, va( "cp \\\"WAVE %i CLEARED\\\\n\\\"", nw_wave ) );
+	trap_SendServerCommand( -1, va( "cp \"WAVE %i CLEARED\n\"", nw_wave ) );
 	G_Printf( "NeonWave: wave %i cleared, break %i ms\n", nw_wave, nw_breakEnd - level.time );
 	NW_SeasonalProgress( nw_wave );
 	NW_Autopick();

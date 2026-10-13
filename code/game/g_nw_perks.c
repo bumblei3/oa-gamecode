@@ -173,7 +173,7 @@ qboolean NeonWave_BuyOffer( gentity_t *ent, int slot ) {
 	G_Printf( "NeonWave: PERK TAKEN %s (rank %i, %i pts left)\n",
 		NW_PerkName( id ), nw_perk[clientID][id], pts );
 	trap_SendServerCommand( ent - g_entities,
-		va( "cp \"PERK: %s\\n\"", NW_PerkName( id ) ) );
+		va( "cp \"PERK: %s\n\"", NW_PerkName( id ) ) );
 	NW_MirrorPerks( clientID );
 	NeonWave_RefreshStatus();
 	return qtrue;
@@ -199,7 +199,7 @@ qboolean NeonWave_TrySecondWind( gentity_t *ent ) {
 	ent->client->ps.stats[ STAT_HEALTH ] = 40;
 	ent->client->ps.pm_type = PM_NORMAL;
 	G_Printf( "NeonWave: SECOND WIND saved the player\n" );
-	trap_SendServerCommand( -1, "cp \"SECOND WIND\\n\"" );
+	trap_SendServerCommand( -1, "cp \"SECOND WIND\n\"" );
 	NeonWave_PerkFx( "secondwind" );
 	NW_MirrorPerks( clientID );
 	return qtrue;

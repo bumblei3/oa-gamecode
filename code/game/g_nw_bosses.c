@@ -140,7 +140,7 @@ void NW_SpawnBoss( void ) {
 	}
 	trap_Cvar_Set( "g_neonwave_nextboss", "1" );
 	trap_Cvar_Set( "g_neonwave_bosshc", va("%i", hc) );
-	trap_SendServerCommand( -1, va( "cp \"BOSS: %s\\n\"", NW_BossName( type ) ) );
+	trap_SendServerCommand( -1, va( "cp \"BOSS: %s\n\"", NW_BossName( type ) ) );
 	trap_SendConsoleCommand( EXEC_APPEND,
 		va("addbot sarge 5 \"BOSS W%d %s\"\n", nw_wave, NW_BossName( type )) );
 }
@@ -316,11 +316,11 @@ void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			if ( rage && nw_bossPhase == 1 ) {
 				nw_bossPhase = 2;
 				G_Printf( "NeonWave: BERSERKER ENTERS RAGE\n" );
-				trap_SendServerCommand( -1, "cp \"BERSERKER ENTERS RAGE\\n\"" );
+				trap_SendServerCommand( -1, "cp \"BERSERKER ENTERS RAGE\n\"" );
 			}
 			if ( rage && level.time - nw_bossLastAttack > 800 ) {
 				nw_bossLastAttack = level.time;
-				trap_SendServerCommand( -1, "cp \"BERSERKER ATTACKS\\n\"" );
+				trap_SendServerCommand( -1, "cp \"BERSERKER ATTACKS\n\"" );
 			}
 		}
 	}
@@ -369,7 +369,7 @@ void NW_BossMechanicsFrame( int *lastMini, int bots ) {
 			gentity_t *spawn;
 			nw_bossLastAttack = level.time;
 			G_Printf( "NeonWave: TELEPORTER blinks to new position\n" );
-			trap_SendServerCommand( -1, "cp \"TELEPORTER blinks away!\\n\"" );
+			trap_SendServerCommand( -1, "cp \"TELEPORTER blinks away!\n\"" );
 			if ( boss ) {
 				spawn = SelectSpawnPoint( vec3_origin, origin, angles, 0 );
 				if ( spawn ) {

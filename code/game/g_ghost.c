@@ -348,7 +348,7 @@ static void GH_PrintKitHint( gentity_t *ent ) {
 	if ( ent->r.svFlags & SVF_BOT ) {
 		return;
 	}
-	trap_SendServerCommand( id, va( "cp \"GHOST: %s\\n%s\\nL kit  RMB zoom\\n\"", name, keys ) );
+	trap_SendServerCommand( id, va( "cp \"GHOST: %s\n%s\nL kit  RMB zoom\n\"", name, keys ) );
 }
 
 static void GH_SetLoadout( gentity_t *ent, int loadout ) {
@@ -573,7 +573,7 @@ void Cmd_GhostCloak_f( gentity_t *ent ) {
 	id = GH_Id( ent );
 	// Loadout check: Spectre has no cloak
 	if ( ent->client->pers.ghostLoadout == GH_LOADOUT_SPECTRE ) {
-		trap_SendServerCommand( id, "cp \"CLOAK NOT AVAILABLE\\n\"" );
+		trap_SendServerCommand( id, "cp \"CLOAK NOT AVAILABLE\n\"" );
 		return;
 	}
 	if ( GH_Cloaked( ent ) ) {
@@ -768,7 +768,7 @@ void Cmd_GhostNuke_f( gentity_t *ent ) {
 	id = GH_Id( ent );
 	// Loadout check: only Spectre has nuke
 	if ( ent->client->pers.ghostLoadout != GH_LOADOUT_SPECTRE ) {
-		trap_SendServerCommand( id, "cp \"NUKE NOT AVAILABLE\\n\"" );
+		trap_SendServerCommand( id, "cp \"NUKE NOT AVAILABLE\n\"" );
 		return;
 	}
 	if ( gh_paintUntil[id] > level.time || gh_boomAt[id] > level.time ) {
@@ -828,7 +828,7 @@ static void GH_Detonate( gentity_t *ent, int id ) {
 		}
 		G_Damage( targ, ent, ent, dir, gh_nukePos[id], dmg, DAMAGE_RADIUS, MOD_BFG );
 	}
-	trap_SendServerCommand( -1, "cp \"NUCLEAR STRIKE\\n\"" );
+	trap_SendServerCommand( -1, "cp \"NUCLEAR STRIKE\n\"" );
 	G_Printf( "Ghost: nuke detonated by %s\\n", ent->client->pers.netname );
 }
 
@@ -1129,15 +1129,15 @@ void Cmd_GhostMultiScan_f( gentity_t *ent ) {
 	}
 	// Loadout check: only Spectre has multiscan
 	if ( ent->client->pers.ghostLoadout != GH_LOADOUT_SPECTRE ) {
-		trap_SendServerCommand( id, "cp \"MULTI-SCAN NOT AVAILABLE\\n\"" );
+		trap_SendServerCommand( id, "cp \"MULTI-SCAN NOT AVAILABLE\n\"" );
 		return;
 	}
 	if ( gh_multiCdUntil[id] > level.time ) {
-		trap_SendServerCommand( id, va( "cp \"MULTI-SCAN READY IN %i\\n\"", ( gh_multiCdUntil[id] - level.time + 999 ) / 1000 ) );
+		trap_SendServerCommand( id, va( "cp \"MULTI-SCAN READY IN %i\n\"", ( gh_multiCdUntil[id] - level.time + 999 ) / 1000 ) );
 		return;
 	}
 	if ( gh_energy[id] < GH_MULTISCAN_COST ) {
-		trap_SendServerCommand( id, "cp \"NOT ENOUGH ENERGY\\n\"" );
+		trap_SendServerCommand( id, "cp \"NOT ENOUGH ENERGY\n\"" );
 		return;
 	}
 	gh_energy[id] -= GH_MULTISCAN_COST;
@@ -1152,12 +1152,12 @@ void Cmd_GhostMultiScan_f( gentity_t *ent ) {
 		// Reveal cloaked units
 		if ( target->client->ps.powerups[PW_INVIS] > level.time ) {
 			target->client->ps.powerups[PW_INVIS] = 0;
-			trap_SendServerCommand( -1, va( "cp \"%s DETECTED\\n\"", target->client->pers.netname ) );
+			trap_SendServerCommand( -1, va( "cp \"%s DETECTED\n\"", target->client->pers.netname ) );
 		}
 	}
 	// Grant damage bonus for 2 seconds
 	ent->client->pers.ghostMultiScan = level.time + 2000;
-	trap_SendServerCommand( id, "cp \"MULTI-SCAN ACTIVE\\n\"" );
+	trap_SendServerCommand( id, "cp \"MULTI-SCAN ACTIVE\n\"" );
 	G_AddEvent( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/weapons/railgun/railgf1a.wav" ) );
 }
 
