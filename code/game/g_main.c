@@ -250,6 +250,7 @@ static cvarTable_t gameCvarTable[] = {
 	{ NULL, "g_ghost_status", "", CVAR_ROM, 0, qtrue },
 	{ NULL, "g_ghost_loadout", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ NULL, "g_ghost_cycletest", "0", 0, 0, qtrue },
+	{ NULL, "g_ghost_emptest", "0", 0, 0, qtrue },
 
 	// Test CVars (for automated testing)
 	{ NULL, "g_neonwave_bosstype", "0", CVAR_ARCHIVE, 0, qtrue },

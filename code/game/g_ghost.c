@@ -202,6 +202,8 @@ void NW_GhostReset( void ) {
 	gh_announced = qfalse;
 }
 
+static void GH_EmpCostAndCd( int loadout, int *cost, int *cd );
+
 void NW_GhostAnnounceKit( void ) {
 	char buf[8];
 	int lo, energy;
@@ -231,6 +233,14 @@ void NW_GhostAnnounceKit( void ) {
 	}
 	G_Printf( "Ghost: kit ENERGY=%i (loadout %i)\n", energy, lo );
 	G_Printf( "Ghost: kit joined the Ghost team (loadout %i)\n", lo );
+	/* Headless EMP-cost probe (the cast needs a live bolt, so probe here). */
+	trap_Cvar_VariableStringBuffer( "g_ghost_emptest", buf, sizeof( buf ) );
+	if ( atoi( buf ) ) {
+		int emCost, emCd;
+		GH_EmpCostAndCd( lo, &emCost, &emCd );
+		trap_Cvar_Set( "g_ghost_emptest", "0" );
+		G_Printf( "Ghost: EMP cost=%i cd=%i (loadout %i)\n", emCost, emCd, lo );
+	}
 	if ( lo == GH_LOADOUT_SPECTRE ) {
 		G_Printf( "Ghost: hint SPECTRE H emp  K lock  N nuke  M scan\n" );
 	} else if ( lo == GH_LOADOUT_SABOTEUR ) {
@@ -592,6 +602,17 @@ void Cmd_GhostCloak_f( gentity_t *ent ) {
 	GH_Sound( ent, "sound/ghost_cloak_on.wav" );
 }
 
+/* EMP cost and cooldown per loadout — shared by the cast path and tests. */
+static void GH_EmpCostAndCd( int loadout, int *cost, int *cd ) {
+	if ( loadout == GH_LOADOUT_SABOTEUR ) {
+		*cost = GH_EMP_COST - 10;
+		*cd = GH_EMP_CD - 3000;
+	} else {
+		*cost = GH_EMP_COST;
+		*cd = GH_EMP_CD;
+	}
+}
+
 void Cmd_GhostEmp_f( gentity_t *ent ) {
 	int id;
 	int cost, cd;
@@ -606,13 +627,7 @@ void Cmd_GhostEmp_f( gentity_t *ent ) {
 	}
 	id = GH_Id( ent );
 	// Loadout-specific EMP: Saboteur has lower cost and shorter CD
-	if ( ent->client->pers.ghostLoadout == GH_LOADOUT_SABOTEUR ) {
-		cost = GH_EMP_COST - 10;
-		cd = GH_EMP_CD - 3000;
-	} else {
-		cost = GH_EMP_COST;
-		cd = GH_EMP_CD;
-	}
+	GH_EmpCostAndCd( ent->client->pers.ghostLoadout, &cost, &cd );
 	if ( gh_empUntil[id] > level.time ) {
 		return;
 	}
@@ -622,6 +637,7 @@ void Cmd_GhostEmp_f( gentity_t *ent ) {
 	}
 	gh_energy[id] -= cost;
 	gh_empUntil[id] = level.time + cd;
+	G_Printf( "Ghost: EMP cast cost=%i cd=%i (loadout %i)\\n", cost, cd, ent->client->pers.ghostLoadout );
 	NW_GhostBreakCloak( ent );
 	AngleVectors( ent->client->ps.viewangles, forward, right, up );
 	CalcMuzzlePoint( ent, forward, right, up, muzzle );
