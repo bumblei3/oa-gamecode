@@ -2202,7 +2202,7 @@ static void CG_FloatName(centity_t *cent) {
 	vec4_t color;
 	vec3_t vp;
 	char *start;
-	vec3_t not;
+	vec3_t not = { 0, 0, 0 };
 	trace_t tr;
 
 	float scl = cgs.screenYScale; // OA3 only scales vertically 
