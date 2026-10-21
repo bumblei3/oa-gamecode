@@ -86,7 +86,7 @@ static void NW_LoadSeasonal( void ) {
 	fileHandle_t f;
 	// default: no progress
 	memset( &nw_seasonal, 0, sizeof( nw_seasonal ) );
-	nw_seasonal.challengeIdx = -1;
+	nw_seasonal.challengeIdx = 0;
 	if ( trap_FS_FOpenFile( NW_SEASONAL_FILE, &f, FS_READ ) >= 0 && f ) {
 		trap_FS_Read( &nw_seasonal, sizeof( nw_seasonal ), f );
 		trap_FS_FCloseFile( f );
@@ -94,6 +94,9 @@ static void NW_LoadSeasonal( void ) {
 	// check if week changed
 	{
 		int curWeek = NW_WeekNumber();
+		if ( nw_seasonal.challengeIdx < 0 || nw_seasonal.challengeIdx >= NW_CHALLENGE_COUNT ) {
+			nw_seasonal.challengeIdx = curWeek;
+		}
 		if ( nw_seasonal.week != curWeek ) {
 			// new week: rotate challenge
 			nw_seasonal.week = curWeek;
