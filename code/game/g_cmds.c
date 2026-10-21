@@ -1916,7 +1916,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} 
 	else if ( Q_strequal( arg1, "kick" ) ) {
 		i = 0;
-		while( !(g_entities+i) || !((g_entities+i)->client) || !Q_strequal(arg2,(g_entities+i)->client->pers.netname)) {
+		while( !((g_entities+i)->client) || !Q_strequal(arg2,(g_entities+i)->client->pers.netname)) {
 			//Not client i, try next
 			i++;
 			if(i>=MAX_CLIENTS){ //Only numbers <128 is clients
