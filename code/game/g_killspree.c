@@ -451,7 +451,7 @@ void G_checkForMultiKill( gentity_t *ent ) {
 	char    *sound;
 	int     soundIndex;
 	int     multiKillCount;
-	char    multiKillString[ 2 ];
+	char    multiKillString[ 16 ];
 
 	//Let's grab the multikill count for the player first
 	multiKillCount = ent->client->pers.multiKillCount;
